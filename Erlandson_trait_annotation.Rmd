@@ -1,0 +1,133 @@
+---
+title: "Erlandson Trait Annotation"
+author: "Oceana"
+date: "2/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+```
+
+## Goals
+  - Read in Erlandson dataset
+  - Read in the FungalTraits db 
+  - Annotate Erlandson dataset by Fungal traits
+  - Export a trait table
+  
+```{r read in Erlandson dataset}
+salix_raw <- read.csv("ccectos_wtaxonomy.csv")
+colnames(salix_raw)
+
+# Only consistent to Phylum level, some species names (will probably have to manually annotate)
+
+#Remove Phylum and Order columns
+
+salix <- salix_raw[-c(12,13)]
+```
+```{r Erlandson Excel sheet}
+erlandson_annotated <- read_excel("salix_rhizomorph.xlsx") %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+  # filter out sp. from Species column
+```
+
+
+```{r read in FungalTraits doc}
+
+short_traits <- read_xlsx("~/Fungi Textbooks/TejonFunctionsDataCleaning/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
+
+#colnames(short_traits)
+```
+
+```{r Install Fun^Fun db which may have more consistent annotations}
+# Version: https://zenodo.org/record/1216257
+
+# Via: https://github.com/traitecoevo/fungaltraits
+
+#install.packages("devtools")
+#devtools::install_github("ropenscilabs/datastorr")
+#devtools::install_github("traitecoevo/fungaltraits")
+library(fungaltraits)
+```
+
+```{r Access Fun^Fun db, include=FALSE}
+fun_fun_db <-fungal_traits()
+long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
+fun_fun_traits <- colnames(fun_fun_db)
+
+# [69] melanin_count, [101] trophic_mode_fg, [2] species, [6] acid_phosphatase, [45] em_expl, [56] growth_form_fg, [59] guild_fg, [49] Genus, [60] heatShockProtein_count, [68] melanin_content, [93-97] show levels of C, N, and P and C:N N:P ratios in tissue [13] 
+# rhizomorph? 
+
+#-- look at phosphatase pdn as N limitation decreases
+ 
+```
+
+
+## Trait Anotation
+
+```{r Annotate by Fungal Trait}
+#Rejoin our annotated dataframe with the original Erlandson dataframe, only keeping those fungi for which we have a species-level identification 
+annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL) %>%  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+exp_type <- merge(exp_type_1, exp_type_2)
+# %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
+
+
+# Check exploration type added correctly
+#unique(exp_type$em_expl) # looks good
+
+erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)# NO exploration type data available for species level :/ must do genus-level!
+
+
+```
+
+## Generate Trait Table
+```{r}
+
+
+trait_unique_expl <- unique(erlandson_expl)
+
+#Subset foraging distance tabl
+trait_table_forage <- trait_unique_expl %>% mutate(type = Ectomycorrhiza_exploration_type_template,
+                                         type = if_else(type=="short-distance_delicate", "short", type),
+                                         type = if_else(type=="short-distance_coarse", "short", type),
+                                         type = if_else(type=="medium-distance_fringe", "medium", type),
+                                         type = if_else(type=="medium-distance_smooth", "medium", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "exploration_type") %>% drop_na(type)
+
+#Subset rhizomorph table
+trait_table_rhizo <- annotated_merge %>% drop_na(Rhizomorph) %>% mutate(type = Rhizomorph,
+                                                                        type = if_else(type=="Y", "r_true", type),
+                                                                        type = if_else(type =="N", "r_false", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "rhizomorphs")
+
+
+#Join trait tables
+
+trait_table_erlandson <- rbind(trait_table_forage, trait_table_rhizo)
+
+write.csv(trait_table_erlandson, file = "trait_table_erlandson.csv")
+#string detect tidyverse (str_subset....etc) to make pipeline
+
+# Monday 10-12
+```
+
+
+## Appendix
+```{r Explore FunFun trait codes, eval=FALSE, include=FALSE}
+# set above to TRUE to see results
+unique(fun_fun_db$trophic_mode_fg) #Provides a new method to sort by symbiotrophs :)
+unique(fun_fun_db$em_expl) # SD = short distance, Long dist, med, dist. will need to clean "SD " and "LD " to "SD" and "LD" 
+unique(fun_fun_db$growth_form_fg)# yeast, ...
+unique(fun_fun_db$substrate)  # one of the options is Salix, could be possible looking at erlandson
+unique(fun_fun_db$guild_fg) # like trophic mode, more detailed
+```
+```{r code to create the annotated dataframe, eval=FALSE, include=FALSE}
+salix_spp <- as.data.frame(unique(salix$Ecto_spp))
+write.csv(salix_spp,file = "salix_rhizomorph.csv")
+```
+

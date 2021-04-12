@@ -1,0 +1,82 @@
+,Ecto_spp,Genus,Species,Subspecies,Rhizomorph,Foraging_distance,Accession_No,Notes
+1,Laccaria1,Laccaria,tortillus,NA,N,,KT275654.1,100% similar
+2,Laccaria3,,pumila,,,,KT275627.1,"99% similar, also Lactarius obscuratus and Laccaria aff. Montana"
+3,Inocybe5,,cincinnata,,,,KT275629.1,97% similar
+4,Entoloma1,,paludicola,,,,KT275678.1,99% similar across 99%
+5,Cortinarius1,,junghuhnii,,,,KT275660.1,"99% across 99%, also decepiens, also leucopus"
+6,Inocybe_lacera_var._lacera,Inocybe,lacera,lacera,N,short,KT275681.1,97% similar
+7,Hebeloma_cf._atrobrunneum,,hygrophilum,,,,KT275664.1,99% across 99%
+8,Hebeloma3,,hiemale,,,,KT275604.1,
+9,Cortinarius2,,fulvopaludosus,,,,KT275605.1,
+10,Hebeloma1,,,,,,,
+11,Inocybe_glabrescens,,glabrescens,,NA,,KT275657.1,97% similar or flocculoso or abjecta
+12,Laccaria_laccata,,alba,,,,KT275642.1,"99% similar, more likecly to be alba than laccata since its largely idintifies with cf. laccata"
+13,Cortinarius3,,croceus,,,,KT275636.1,97% similar
+14,Hebeloma2,,leucosarx,,,,KT275625.1,"99% similar, velutipes 99.58% similar"
+15,Inocybe3,,semifulva,,,,KT275638.1,"95% similar, may also be flocculosa, tigrina"
+16,Cortinarius4,,,,,,KT275626.1,
+17,Inocybe4,,derbschii,,,,KT275639.1,"87% similar, could easily also be grammopodia"
+18,Inocybe9,,,,,,,
+19,Cadophora_finlandica,Cadophora,finlandica,NA,NA,,,
+20,Clavulinopsis_helvola,,helvola,,NA,,KT275650.1,99% similar
+21,Clavulina2,,reae,,NA,,KT275655.1,95% similar across 99%
+22,Clavulina_cf._amethystina,,reae,,NA,,KT275670.1,96% similar across 99%
+23,Cenococcum_geophilum,,geophilum,,N,short,KT275677.1,99% similar
+24,Meliniomyces1,Hyaloscypha,finlandica,,,,KT275679.1,99% similar across 99%
+25,Chromelosporium1,,,,,,,
+26,Otidea_cf._bufonia,,bufonia,,NA,,KT275680.1,99% similar
+27,Peziza4,,badia,,,,KT275647.1,"95% across 99%, maybe limnaea"
+28,Peziza2,,badia,,,,KT275666.1,"90% similar, like limnaea"
+29,Tuber3,,separans,,,,KT275641.1,95% similar across 99% of search
+30,Geopora2,,pinyonensis,,,,KT275630.1,"No real certainty, cervina or pinyonensis (more pinyonensis hits than cervina, also tenuis)"
+31,Tuber1,,xuanhuaense,,,,KT275631.1,93%
+32,Peziza3,,badia,,,,KT275661.1,90% similar
+33,Peziza1,,badia,,,,KT275669.1,"96% similar, may also be violacea"
+34,Geopora3,,nicaeensis,,,,KT275618.1,99% similar
+35,Tuber2,,xuanhuaense,,,,KT275656.1,"93% similar, maybe sinopuberlum"
+36,Hydnobolites1,,cerebriformis,,,,KT275635.1,92% similar
+37,Helvella1,,elastica,,,,KT275607.1,94% similar
+38,Genabea1,,fragilis,,,,KT275608.1,98% similar
+39,Geopora1,,nicaeensis,,,,KT275653.1,92% similar across 99%
+40,Elaphomyces_decipiens,,decipiens,,NA,,KT275644.1,97% similar
+41,Tuber4,,anniae,,,,KT275646.1,100% similar. Also 100% similar is pacificum
+42,Russula_nigricans,,,,Y,medium,KT275671.1,"99% similar, rhizomorphs infrequent"
+43,Russula_pascua,,pascua,,N,contact,KT275652.1,99% similar
+44,Russula_laccata,,laccata,,NA,,KT275667.1,99% similar
+45,Russula_odorata,,,,N,contact,KT275634.1,99% similar
+46,Lactarius_cf._subdulcis,,flavigalactus,,Y,,KT275662.1,97% similar
+47,Russula_emetica,,,,N,contact,,
+48,Sebacina1,,dimitica,,,,KT275675.1,"93% similar, most closely matches Sebacina3"
+49,Sebacina3,,sp.,,,,KT275651.1,
+50,Sebacina2,,epigaea,,,,KT275649.1,"88% similar, may also be helvellosebacina sp."
+51,Sebacina10,,epigaea,,,,KT275620.1,87% similar
+52,Sebacina11,,sp.,,,,KT275621.1,
+53,Sebacina_4,,sp.,,,,KT275622.1,
+54,Sebacina_6,,sp.,,,,KT275623.1,
+55,Sebacina9,,,,,,,
+56,Tomentella_coerulea,,,,NA,,,
+57,Tomentella21,,sp.,,,,KT275603.1,
+58,Tomentella2,,sp.,,,,KT275673.1,Maybe griseocastanea
+59,Tomentella_ellisii,,,,NA,,KT275663.1,99% similar
+60,Tomentella5,,sp.,,,,KT275658.1,
+61,Tomentella14,,,,,,,
+62,Tomentella9,,stuposa,,,,KT275628.1,"98% similar, also mentioned manniensis but mostly stuposa"
+63,Tomentella15,,,,,,,
+64,Tomentella4,,stuposa,,,,KT275672.1,97% similar
+65,Tomentella6,,atramentaria,,,,KT275659.1,86% across 93%
+66,Tomentella3,,bryophila,,,,KT275674.1,97% across 99%
+67,Tomentella7,,lilacinogrisea,,,,KT275665.1,95%  similar
+68,Tomentella16,,,,,,,
+69,Tomentella_cf._bryophila,,bryophila,,NA,,KT275668.1,"95% similar, maybe griseomarginata"
+70,Thelephora_terristris,,,,Y,medium,KT275632.1,rhizomorphs infrequent or abundant
+71,Tomentella11,,lammiensis,,,,KT275633.1,"94% similar, also pallidobrunnea, or bryophila"
+72,Tomentella17,,sp.,,,,KT275619.1,
+73,Tomentella18,,sp.,,,,KT275606.1,cross-listed as potential Thelephoracae on blastn megablast search
+74,Tomentella13,,subclavigera,,,,KT275624.1,89% similar
+75,Tomentella19,,sp.,,,,KT275609.1,
+76,Tomentella12,,testaceogilva,,,,KT275637.1,99% similar
+77,Tomentella8,,lilacinogrisea,,,,KT275643.1,94% across 99%
+78,Tomentella20,,coerula,,,,KT275610.1,94% similar
+79,Tomentella_ramosissima,,ramosissima,,NA,,KT275611.1,
+80,Tomentellopsis,,echinospora,,N,medium,,. 98--99% similar only submollis in DEEMY
+81,Tomentella10,,sp.,,,,KT275645.1,might be pallidocastanea

@@ -1,0 +1,27 @@
+---
+title: "Erlandson_matrices_generation"
+author: "Oceana"
+date: "4/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Generate Abudncance table from erlandson raw dataset
+
+ID by tree ("Ind" column)
+Relativize ectoID by tree (eg communuity at tree/site was 20% (.20 or 20?) Laccaria) and by counts of Ecto_spp and divide by number of unique root tips at the tree (~12/tree, expect fewer)
+
+spp matrix = per tree abund data
+trait matrix = per tree trait data
+
+-paste to combo.matrix your data to generate species NMDS 
+Structure of end dataset is:
+  - 
+  
+```{r}
+
+```
+
