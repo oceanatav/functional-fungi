@@ -30,15 +30,18 @@ colnames(salix_raw)
 
 salix <- salix_raw[-c(12,13)]
 ```
-```{r Erlandson Excel sheet}
-erlandson_annotated <- read_excel("salix_rhizomorph.xlsx") %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+```{r Erlandson Excel sheet and prepare metadata}
+erlandson_annotated <- read_excel("salix_rhizomorph.xlsx") %>% if_else(Species != NA, Species, "sp.") %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+
+erlandson_metadata <- left_join(salix_raw, erlandson_annotated) %>% mutate (Tree_site = Plspp, Plspp = NULL)
+write.csv(erlandson_metadata, "erlandson_generated_metadata.csv")
   # filter out sp. from Species column
 ```
 
 
 ```{r read in FungalTraits doc}
 
-short_traits <- read_xlsx("~/Fungi Textbooks/TejonFunctionsDataCleaning/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
+short_traits <- read_xlsx("~/Fungi Textbooks/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
 
 #colnames(short_traits)
 ```
@@ -71,7 +74,7 @@ fun_fun_traits <- colnames(fun_fun_db)
 
 ```{r Annotate by Fungal Trait}
 #Rejoin our annotated dataframe with the original Erlandson dataframe, only keeping those fungi for which we have a species-level identification 
-annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL) %>%  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
+annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
 # Add an exploration type column from the fungaltraits database 
 exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
 exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
@@ -89,7 +92,6 @@ erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)# 
 
 ## Generate Trait Table
 ```{r}
-
 
 trait_unique_expl <- unique(erlandson_expl)
 
@@ -113,9 +115,28 @@ trait_table_erlandson <- rbind(trait_table_forage, trait_table_rhizo)
 write.csv(trait_table_erlandson, file = "trait_table_erlandson.csv")
 #string detect tidyverse (str_subset....etc) to make pipeline
 
-# Monday 10-12
+erlandson_matrix <- right_join(trait_table_erlandson, trait_unique_expl)
+
+write.csv(erlandson_matrix, file = "erlandson_matrix_input.csv")
 ```
 
+#Produce trait table to be turned into matrix
+```{r}
+annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+exp_type <- merge(exp_type_1, exp_type_2)
+# %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
+
+
+# Check exploration type added correctly
+#unique(exp_type$em_expl) # looks good
+
+erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)#
+
+trait_table_erlandson
+```
 
 ## Appendix
 ```{r Explore FunFun trait codes, eval=FALSE, include=FALSE}

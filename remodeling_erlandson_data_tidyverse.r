@@ -1,31 +1,3 @@
----
-title: "Erlandson Abundance Table Generation"
-author: "Oceana"
-date: "4/22/2021"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-Generate Abudncance table from erlandson raw dataset
-
-ID by tree ("Ind" column)
-Relativize ectoID by tree (eg communuity at tree/site was 20% (.20 or 20?) Laccaria) and by counts of Ecto_spp and divide by number of unique root tips at the tree (~12/tree, expect fewer)
-
-spp matrix = per tree abund data
-trait matrix = per tree trait data
-
--paste to combo.matrix your data to generate species NMDS 
-Structure of end dataset is:
-  - 
-  
-# Laura's Code
-# Trying out a new pipeline for the Erlandson data.
-
-
-```{r}
 # Trying out a new pipeline for the Erlandson data.
 
 library(tidyverse)
@@ -61,13 +33,10 @@ relabund = together %>% mutate(relabund = count/totaltips)
 
 justrelabund = relabund %>% select(Tree_site = Plspp, Ecto_spp, relabund)
 
-
 erlandson_otus = justrelabund %>% spread(Ecto_spp, relabund)
-erlandson_otus[is.na(erlandson_otus)] = 0  # I'm sure there's a tidyr way to do this but I don't know it. ## take anyhing that was printed as NA as a zero (bc we should be reading these as zeros)
+erlandson_otus[is.na(erlandson_otus)] = 0  # I'm sure there's a tidyr way to do this but I don't know it.
 
 erlandson_otus_for_NMDS = as.matrix(erlandson_otus)
-
-
 # Note: You will probably have to remove the Tree_site column before
 # merging with other data (Tejon, Mendocino) for metaMDS().
 
@@ -77,32 +46,3 @@ erlandson_otus_for_NMDS = as.matrix(erlandson_otus)
 # so that they were comparable to each other. They weren't relative abundance, whatever
 # was happening. I will ask. We should use whatever metric she used while pulling other
 # data into the analysis.
-```
-
-# My code, Generate Trait Table abund Matrix
-```{r}
-trait_input <- read.csv("erlandson_matrix_input.csv") %>% filter(!is.na(type)) %>% group_by(Plspp, type)%>% summarize(count=n())
-
-trait_relabund_join <- left_join(relabund, trait_input) %>% filter(!is.na(type)) 
-
-filter_trait <- trait_relabund_join %>%  group_by(Tree_site=Plspp, type) %>% select(Tree_site, type, Ecto_spp, relabund) %>% summarize(mysum = sum(relabund))
-
-
-
-#ADD identical traits/site together (i.e. if there are multiple "mediums" in the same Tree_site, combine relabund and type rows)
-
-
-
-trait_otu <- filter_trait %>% spread(type, mysum)
-
-trait_otu[is.na(trait_otu)] = 0 
-trait_otu_NMDS <- as.matrix(trait_otu)
-
-
-```
-
-```{r}
-write.csv(erlandson_otus_for_NMDS, "erlandson_OTU.csv")
-write.csv(trait_otu_NMDS, "trait_OTU.csv")
-```
-
