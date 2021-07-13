@@ -49,7 +49,7 @@ library(tidyverse)
 erlandson_OTU_raw <- read.csv(as.matrix("erlandson_OTU.csv")) %>% mutate(X=NULL)
 erlandson_traits_raw <- read.csv(as.matrix("trait_OTU.csv")) %>% mutate(X=NULL)
 
-# t/d save as and reload as R obj to no need to remove X column
+# t/d save as and reload as R obj in matrices generation.rmd so no need to remove X column
 ```
 
 # Refine matrices/Combine recurring taxa names beween 3 datasets
@@ -63,8 +63,6 @@ mendo_names <- mendo_metadata %>% select(SpeciesCode, BlastID) #%>% mutate(Speci
 
 tejon_names <- tejon_metadata %>% select(OUT_MatchwMendo,species) #%>% mutate (Species = OUT_MatchwMendo)
 #Issue w tejon species format. Some NA's (replace w genus sp.), lots of genus sp. with additional codes. wouldnt it make more sense to leave them w special codes? - Yes
-
-
 
 mendo_tejon_join <- bind_rows(mendo_names, tejon_names) %>% unite(Species, OUT_MatchwMendo, SpeciesCode) %>% unite(ID, species, BlastID)
 mendo_tejon_join <- as.data.frame(mendo_tejon_join)
@@ -99,6 +97,7 @@ for(i in 1:nrow(erlandson_names)) {
    }
 }
 
+erlandson_OTU <- erlandson_OTU_raw
 erlandson_OTU_combined <- erlandson_OTU %>% 
   rename("17" = Cortinarius1,
          "3" = Cenococcum_geophilum)
@@ -180,35 +179,6 @@ erlandson_rel_OTU <- erlandson_OTU_add_enviro #%>%
 # Read in TEJON data 
 ```{r}
 tejon_traits <- read.csv("TraitAnalysisforOceana/ecto_OTU_traits.csv")
-# str_detect from tidyverse 
-# merge names
-
-# ALSO to write function, lets add Species column to dataset. 
-# try to automate, get maximum number of spp. names on there
-
-# see slack messages for code
-# loop thru matrix, if row of selected matrix is match to reference (mendo?0), print OTU_ID that it mathces, if no, print original otu_ID
-# 
-
-#My for loop approach would be:
-#x <- c(2,5,3,9,8,11,6)
-#count <- 0
-#for (val in x) {
-#if(val %% 2 == 0)  {
-#count = count+1
-#}
-#}
-#print(count)
-
-#So, for your data it would be something like:
-#for (row in 1:nrow(taxon_matrix)) {
-#for (anotherrow in 1:nrow(another_taxon_matrix)) {
-#if (taxon_matrix$taxon[row] == another_taxon_matrix$taxon[anotherrow]
-#}
-
-#taxon_matrix$ismatch[row] = TRUE
-#}
-
 ```
 
 # Make rel abund table for Holly's data
@@ -220,53 +190,6 @@ tejon_traits <- read.csv("TraitAnalysisforOceana/ecto_OTU_traits.csv")
 #relativized_combo_matrix = decostand(combo.matrix, method = “total”)
 ```
 
-
-
-# Holly's Functions
-
-```{r species matrix function}
-
-## species matrix function #####
-
-
-#this code takes an input dataframe and makes it into
-#a matrix that can be used for community similarity 
-
-speciesMatrix<-function(data,species,abundance,sample.ID){
-	
-	speciesNames<-unique(data[[species]])
-	sampleNames<-unique(data[[sample.ID]])
-	
-	speciesSummary<-aggregate(data[[abundance]],by=list(data[[species]]),FUN=sum,na.rm=TRUE)
-	
-	siteSummary<-aggregate(data[[abundance]], by=list(data[[sample.ID]]), FUN=sum, na.rm=TRUE)
-
-	speciesByPlot<-aggregate(data[[abundance]], by=list(data[[sample.ID]],data[[species]]), FUN=sum, na.rm=TRUE)
-
-	names(speciesByPlot)=c("sample","species","abundance")
-
-	sppMat<-matrix(nrow=length(sampleNames),ncol=length(speciesNames))
-	sppMat[is.na(sppMat)]=0	
-
-	rownames(sppMat)<-sampleNames
-	colnames(sppMat)<-speciesNames
-
-	colNumbers<-match(speciesByPlot$species,speciesNames)
-	rowNumbers<-match(speciesByPlot$sample,sampleNames)
-
-for(i in 1:length(colNumbers)) {
-	
-	sppMat[rowNumbers[i],colNumbers[i]]=speciesByPlot$abundance[i]
-	
-	}
-
-return(sppMat)
-
-
-}
-
-##END FUNCTION
-```
 
 
 ## Tejon Data Cleaning (Holly)
@@ -281,8 +204,8 @@ tejon.ecto <- read.csv('TraitAnalysisforOceana/ecto_OTUs.csv') #OTU's of only Ec
 #head(tejon.ecto$OTU_ID)
 #head(colnames(tejon.trees))
  
-tejon.trees_sum <- tejon.trees
-tejon.trees_sum<- rowSums(tejon.trees_sum[,3:2424]) # sum of abundances---**RELATIVIZE???**
+#tejon.trees_sum <- tejon.trees
+#tejon.trees_sum<- rowSums(tejon.trees_sum[,3:2424]) # sum of abundances---**RELATIVIZE???**
 
 tejon.trees <- tejon.trees[tejon.trees$site!='intermediate',] #removes intermediate site from OTU table
 
@@ -440,7 +363,7 @@ pygmy.raw<-read.csv("TraitAnalysisforOceana/Curated_Assembly_3July2012.csv")
 pygmy.clean<-read.csv("TraitAnalysisforOceana/pygmy-cleandata-wsoils.csv")
 #is.na(tail(pygmy.clean))
 pygmy.crop <- pygmy.clean %>% group_by(SpeciesCode) %>% 
-  arrange(., SpeciesCode)
+  arrange(., SpeciesCode) %>% ungroup()
 
 #pyg.dropped <- subset(pygmy.crop[(475:490),]) # I dont know why these rows were dropped
 # pygmy.crop<-pygmy.clean[order(pygmy.clean$SpeciesCode),]
@@ -454,10 +377,19 @@ pygmy.crop <- pygmy.clean %>% group_by(SpeciesCode) %>%
 
 ```{r}
 #############Condensing to core by species
-names(pygmy.clean)
+#names(pygmy.clean)
+#pygmy_by_core <- pygmy.clean %>% 
+ # group_by(No.Tips, Tree, SpeciesCode, Sample.ID) %>% 
+  #summarise(No.Tips = sum(No.Tips))%>% 
+  #distinct(No.Tips, .keep_all = TRUE)
+
+#%>% mutate(#%>% select(Sample.ID, SpeciesCode,Tree, Core, Terrace, Pygmy, Trait.ForagingType, Trait.Hydrophobicity, Trait.Rhizomorphs)
+
+#^^ above are oceana's attempts at tidyverse-ing the below chunk so far none as clean as Holly's 
 
 pygmy.core<-aggregate(pygmy.clean$No.Tips,
-                      list(pygmy.clean$Sample.ID,pygmy.clean$SpeciesCode,
+                      list(pygmy.clean$Sample.ID,
+                           pygmy.clean$SpeciesCode,
                            pygmy.clean$Tree,
                            pygmy.clean$Core,
                            pygmy.clean$Terrace,
@@ -468,8 +400,8 @@ pygmy.core<-aggregate(pygmy.clean$No.Tips,
                       ,sum)
 
 colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
-
-head(pygmy.core)
+# ^ the above works better than what I can do
+#head(pygmy.core)
 
 pygmy.core<-cbind(pygmy.core,c(rep(1,dim(pygmy.core)[1])))
 
@@ -479,36 +411,136 @@ colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy
 #############Condensing to tree by species
 names(pygmy.clean)
 
-pygmy.tree<-aggregate(pygmy.clean$No.Tips,list(pygmy.clean$SpeciesCode,pygmy.clean$Tree,pygmy.clean$Terrace,pygmy.clean$Pygmy,pygmy.clean$Trait.ForagingType,pygmy.clean$Trait.Hydrophobicity,pygmy.clean$Trait.Rhizomorphs),sum)
+pygmy.tree<-aggregate(pygmy.clean$No.Tips,
+                  list(pygmy.clean$SpeciesCode,
+                    pygmy.clean$Tree,
+                    pygmy.clean$Terrace,
+                    pygmy.clean$Pygmy,
+                    pygmy.clean$Trait.ForagingType,
+                    pygmy.clean$Trait.Hydrophobicity,
+                    pygmy.clean$Trait.Rhizomorphs)
+                  ,sum)
 
 colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
+
 head(pygmy.tree)
 
 pygmy.tree<-cbind(pygmy.tree,c(rep(1,dim(pygmy.tree)[1])))
 colnames(pygmy.tree)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips","Spp")
 tail(pygmy.tree)
+```
+# Holly's Functions
 
-tree.matrix<-speciesMatrix(pygmy.clean,"SpeciesCode","No.Tips","Tree")
-dim(tree.matrix)  #Check to make sure there're 29 rows; if not...
+```{r species matrix function}
+
+## species matrix function #####
+
+
+#this code takes an input dataframe and makes it into
+#a matrix that can be used for community similarity 
+
+speciesMatrix<-function(data,species,abundance,sample.ID){
+	
+	speciesNames<-unique(data[[species]])
+	sampleNames<-unique(data[[sample.ID]])
+	
+	speciesSummary<-aggregate(data[[abundance]],by=list(data[[species]]),FUN=sum,na.rm=TRUE)
+	
+	siteSummary<-aggregate(data[[abundance]], by=list(data[[sample.ID]]), FUN=sum, na.rm=TRUE)
+
+	speciesByPlot<-aggregate(data[[abundance]], by=list(data[[sample.ID]],data[[species]]), FUN=sum, na.rm=TRUE)
+
+	names(speciesByPlot)=c("sample","species","abundance")
+
+	sppMat<-matrix(nrow=length(sampleNames),ncol=length(speciesNames))
+	sppMat[is.na(sppMat)]=0	
+
+	rownames(sppMat)<-sampleNames
+	colnames(sppMat)<-speciesNames
+
+	colNumbers<-match(speciesByPlot$species,speciesNames)
+	rowNumbers<-match(speciesByPlot$sample,sampleNames)
+
+for(i in 1:length(colNumbers)) {
+	
+	sppMat[rowNumbers[i],colNumbers[i]]=speciesByPlot$abundance[i]
+	
+	}
+
+return(sppMat)
+
+
+}
+
+##END FUNCTION
+```
+
+#Create matrices from Holly's pygmy data
+```{r}
+#Ideally this will happen without Holly's speciesMatrix fxn
+
+#Make Mendo OTU matrix
+mendo_OTU_table <- pygmy.tree %>% 
+  select(SpeciesCode, Tips, Tree) %>% 
+  group_by(Tree) %>% 
+  arrange(.,Tree) %>% 
+  ungroup(Tree) %>% 
+  pivot_wider(., names_from = SpeciesCode, values_from = Tips) %>% 
+  mutate(Tree = NULL) %>% 
+  replace(., is.na(.), 0)
+  
+mendo_OTU_matrix<- as.matrix(mendo_OTU_table)
+
+## Make Mendo TRAIT matrix
+mendo_trait_table_foraging <- pygmy.core %>% 
+  select(Tree, Trait.ForagingType, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.ForagingType != "") %>% 
+  pivot_wider(., names_from = Trait.ForagingType, values_from = Tips)##why not working???
+##^must be an issue w the fact that there are traits shared by multiple members under the same tree?
+
+mendo_trait_table_rhizo <- pygmy.core %>% 
+  select(Tree, Trait.Rhizomorphs, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.Rhizomorphs != "") %>% 
+  pivot_wider(., names_from = c(Trait.Rhizomorphs), values_from = c(Tips), values_fill = 0 )
+```
+
+# Applying Holly's speciesMatrix function
+```{r}
+#tree.matrix<-speciesMatrix(pygmy.clean,"SpeciesCode","No.Tips","Tree")
+#dim(tree.matrix)  #Check to make sure there're 29 rows; if not...
 #tree.matrix=tree.matrix[1:29,]
+
+#^ the above makes a matrix, columns=SpeciesCode, rows=Tree (no identifying column), data = No.Tips
 
 tree.trait.matrix<-cbind(speciesMatrix(pygmy.clean,"Trait.ForagingType","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Hydrophobicity","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Rhizomorphs","No.Tips","Tree"))
 
-head(tree.trait.matrix)
-tree.trait.matrix<-tree.trait.matrix[,c(1:2,4:9,12:13)]
+#head(tree.trait.matrix)
+tree.trait.matrix<-tree.trait.matrix[,c(1:2,4:9,12:13)] # < cleans up weird columns generated by speciesMatrix function
 
 #Condensed trait matrix to make all medium f-types into one column
-tree.trait.matrix.cond<-cbind(tree.trait.matrix[,1:2],rowSums(tree.trait.matrix[,3:5]),tree.trait.matrix[,6:10])
+#tree.trait.matrix.cond<-cbind(tree.trait.matrix[,1:2],rowSums(tree.trait.matrix[,3:5]),tree.trait.matrix[,6:10])
 
+
+##the FOLLOWING appears to be something from another analysis missing "terrace"?
 #Proportion of tips w/ traits
-trait_tip_count = tapply(tree.trait.matrix.cond[,1],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,2],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,3],terrace,FUN=sum)
-tip_count = tapply(rowSums(tree.matrix),terrace,FUN=sum)
-trait_tip_count/tip_count
+#trait_tip_count = tapply(tree.trait.matrix.cond[,1],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,2],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,3],terrace,FUN=sum)
+#tip_count = tapply(rowSums(tree.matrix),terrace,FUN=sum)
+#trait_tip_count/tip_count
 
 
-tip_count_trait=tapply(tree.trait.matrix.cond[,1],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,2],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,3],terrace,FUN=sum)
-tip_count = tapply(rowSums(tree.matrix),terrace,FUN=sum)
-tip_count_trait/tip_count
+#tip_count_trait=tapply(tree.trait.matrix.cond[,1],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,2],terrace,FUN=sum)+tapply(tree.trait.matrix.cond[,3],terrace,FUN=sum)
+#tip_count = tapply(rowSums(tree.matrix),terrace,FUN=sum)
+#tip_count_trait/tip_count 
+
+```
+#relativize MENDO matrices
+```{r}
 
 ```
 
@@ -516,13 +548,16 @@ tip_count_trait/tip_count
 
 ```{r}
 OTU_list <- unique(c(colnames(tree.matrix),colnames(tejon.trees.ecto)[4:120]))
-length(OTU_list)
+#length(OTU_list)
+#makes list of OTUs in Mendo and Tejon datasets
 
 tree_list <- 1:(dim(tejon.trees.ecto)[1]+dim(tree.matrix)[1])
+#makes list of trees in Mendo and Tejon datasets
 
 combo.matrix <- matrix(rep(0,length(tree_list)*length(OTU_list)),nrow=length(tree_list),ncol=length(OTU_list))
+#creates empty matrix
 
-dim(combo.matrix)
+#dim(combo.matrix)
 
 colnames(combo.matrix) <- OTU_list
 rownames(combo.matrix) <- tree_list
