@@ -145,34 +145,34 @@ erlandson_OTU_add_enviro <- label_erlandson %>%
 #ERLANDSON TRAITS
 
 erlandson_traits <- erlandson_traits_raw %>% 
-  mutate(short= contact + short,
-         contact = NULL,
-         rhizo= r_true,
-         norhizo = r_false,
-         r_true = NULL,
-         r_false = NULL) %>% 
-  relocate(short, .before = medium) %>% 
-  relocate(norhizo, .before = rhizo)
+  transmute(short= contact + short,
+            medium = medium,
+            long = rep(0),
+            rhizo= r_true,
+         norhizo = r_false)
 
 
 erlandson_rel_traits <- erlandson_traits %>% 
-  mutate(sumAbund = select(., short:rhizo) %>% 
+  mutate(sumAbund = select(., short:norhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  mutate(short = short/sumAbund, 
-         medium = medium/sumAbund, 
+  transmute(short = short/sumAbund, 
+         medium = medium/sumAbund,
+         long = long/sumAbund,
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund) %>% 
-  mutate(sumAbund = NULL)
+         rhizo = rhizo/sumAbund)
 
 
 #ERLANDSON OTU
 
-erlandson_rel_OTU <- erlandson_OTU_add_enviro #%>%
-    #mutate(sumAbund = select(., c(4:84,)) %>% 
-     #        rowSums(na.rm = TRUE)) %>% 
-  #relocate(sumAbund, .after = enviro) %>% 
-  #mutate(sumAbund = NULL)
+erlandson_rel_OTU <- erlandson_OTU_add_enviro %>% 
+  select(-site, -Tree_site, -enviro)
 #ERlandson OTU is already relativized
+```
+
+#Make ERLANDSON matrices
+```{r}
+erlandson_OTU_matrix <- as.matrix(erlandson_rel_OTU)
+erlandson_trait_matrix <- as.matrix(erlandson_rel_traits)
 ```
 
 
@@ -439,77 +439,41 @@ tail(pygmy.tree)
 #this code takes an input dataframe and makes it into
 #a matrix that can be used for community similarity 
 
-speciesMatrix<-function(data,species,abundance,sample.ID){
+#speciesMatrix<-function(data,species,abundance,sample.ID){
 	
-	speciesNames<-unique(data[[species]])
-	sampleNames<-unique(data[[sample.ID]])
+#	speciesNames<-unique(data[[species]])
+#	sampleNames<-unique(data[[sample.ID]])
 	
-	speciesSummary<-aggregate(data[[abundance]],by=list(data[[species]]),FUN=sum,na.rm=TRUE)
+#	speciesSummary<-aggregate(data[[abundance]],by=list(data[[species]]),FUN=sum,na.rm=TRUE)
 	
-	siteSummary<-aggregate(data[[abundance]], by=list(data[[sample.ID]]), FUN=sum, na.rm=TRUE)
+#	siteSummary<-aggregate(data[[abundance]], by=list(data[[sample.ID]]), FUN=sum, na.rm=TRUE)
 
-	speciesByPlot<-aggregate(data[[abundance]], by=list(data[[sample.ID]],data[[species]]), FUN=sum, na.rm=TRUE)
+#	speciesByPlot<-aggregate(data[[abundance]], by=list(data[[sample.ID]],data[[species]]), FUN=sum, na.rm=TRUE)
 
-	names(speciesByPlot)=c("sample","species","abundance")
+#	names(speciesByPlot)=c("sample","species","abundance")
 
-	sppMat<-matrix(nrow=length(sampleNames),ncol=length(speciesNames))
-	sppMat[is.na(sppMat)]=0	
+#	sppMat<-matrix(nrow=length(sampleNames),ncol=length(speciesNames))
+#	sppMat[is.na(sppMat)]=0	
 
-	rownames(sppMat)<-sampleNames
-	colnames(sppMat)<-speciesNames
+#	rownames(sppMat)<-sampleNames
+#	colnames(sppMat)<-speciesNames
 
-	colNumbers<-match(speciesByPlot$species,speciesNames)
-	rowNumbers<-match(speciesByPlot$sample,sampleNames)
+#	colNumbers<-match(speciesByPlot$species,speciesNames)
+#	rowNumbers<-match(speciesByPlot$sample,sampleNames)
 
-for(i in 1:length(colNumbers)) {
+#for(i in 1:length(colNumbers)) {
 	
-	sppMat[rowNumbers[i],colNumbers[i]]=speciesByPlot$abundance[i]
+#	sppMat[rowNumbers[i],colNumbers[i]]=speciesByPlot$abundance[i]
 	
-	}
+#	}
 
-return(sppMat)
+#return(sppMat)
 
 
-}
+#}
 
 ##END FUNCTION
 ```
-
-#Create matrices from Holly's pygmy data
-```{r}
-#Ideally this will happen without Holly's speciesMatrix fxn
-
-#Make Mendo OTU matrix
-mendo_OTU_table <- pygmy.tree %>% 
-  select(SpeciesCode, Tips, Tree) %>% 
-  group_by(Tree) %>% 
-  arrange(.,Tree) %>% 
-  ungroup(Tree) %>% 
-  pivot_wider(., names_from = SpeciesCode, values_from = Tips) %>% 
-  mutate(Tree = NULL) %>% 
-  replace(., is.na(.), 0)
-  
-mendo_OTU_matrix<- as.matrix(mendo_OTU_table)
-
-## Make Mendo TRAIT matrix
-mendo_trait_table_foraging <- pygmy.core %>% 
-  select(Tree, Trait.ForagingType, Tips) %>% 
-  group_by(Tree) %>% 
-  arrange(Tree) %>% 
-  ungroup() %>% 
-  filter(., Trait.ForagingType != "") %>% 
-  pivot_wider(., names_from = Trait.ForagingType, values_from = Tips)##why not working???
-##^must be an issue w the fact that there are traits shared by multiple members under the same tree?
-
-mendo_trait_table_rhizo <- pygmy.core %>% 
-  select(Tree, Trait.Rhizomorphs, Tips) %>% 
-  group_by(Tree) %>% 
-  arrange(Tree) %>% 
-  ungroup() %>% 
-  filter(., Trait.Rhizomorphs != "") %>% 
-  pivot_wider(., names_from = c(Trait.Rhizomorphs), values_from = c(Tips), values_fill = 0 )
-```
-
 # Applying Holly's speciesMatrix function
 ```{r}
 #tree.matrix<-speciesMatrix(pygmy.clean,"SpeciesCode","No.Tips","Tree")
@@ -518,10 +482,10 @@ mendo_trait_table_rhizo <- pygmy.core %>%
 
 #^ the above makes a matrix, columns=SpeciesCode, rows=Tree (no identifying column), data = No.Tips
 
-tree.trait.matrix<-cbind(speciesMatrix(pygmy.clean,"Trait.ForagingType","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Hydrophobicity","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Rhizomorphs","No.Tips","Tree"))
+#tree.trait.matrix<-cbind(speciesMatrix(pygmy.clean,"Trait.ForagingType","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Hydrophobicity","No.Tips","Tree"),speciesMatrix(pygmy.clean,"Trait.Rhizomorphs","No.Tips","Tree"))
 
 #head(tree.trait.matrix)
-tree.trait.matrix<-tree.trait.matrix[,c(1:2,4:9,12:13)] # < cleans up weird columns generated by speciesMatrix function
+#tree.trait.matrix<-tree.trait.matrix[,c(1:2,4:9,12:13)] # < cleans up weird columns generated by speciesMatrix function
 
 #Condensed trait matrix to make all medium f-types into one column
 #tree.trait.matrix.cond<-cbind(tree.trait.matrix[,1:2],rowSums(tree.trait.matrix[,3:5]),tree.trait.matrix[,6:10])
@@ -539,12 +503,118 @@ tree.trait.matrix<-tree.trait.matrix[,c(1:2,4:9,12:13)] # < cleans up weird colu
 #tip_count_trait/tip_count 
 
 ```
-#relativize MENDO matrices
+
+
+#Build MENDO tables
 ```{r}
+#Ideally this will happen without Holly's speciesMatrix fxn
+
+#Make Mendo OTU matrix
+mendo_OTU_table <- pygmy.tree %>% 
+  select(SpeciesCode, Tips, Tree) %>% 
+  group_by(Tree) %>% 
+  arrange(.,Tree) %>% 
+  ungroup(Tree) %>% 
+  pivot_wider(., names_from = SpeciesCode, values_from = Tips) %>% 
+  mutate(Tree = NULL) %>% 
+  replace(., is.na(.), 0)
+  
+#mendo_OTU_matrix<- as.matrix(mendo_OTU_table)
+
+## Make Mendo TRAIT matrix
+mendo_trait_table_foraging <- pygmy.core %>% 
+  select(Tree, Trait.ForagingType, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.ForagingType != "") %>% 
+  mutate(row = row_number()) %>%
+  pivot_wider(., names_from = Trait.ForagingType, values_from = Tips, values_fill = 0) %>% 
+  transmute(Tree = Tree,
+            short = shortdistance+contact, 
+            medium = mediumdistancefringe+mediumdistancesmooth+mediumdistancemat,
+            long = longdistance)
+  
+#not 100% sure what row_number does to help pivot.wider--but it works. Thanks stack overflow!
+
+mendo_trait_table_rhizo <- pygmy.core %>% 
+  select(Tree, Trait.Rhizomorphs, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.Rhizomorphs != "") %>% 
+    mutate(row = row_number()) %>%
+  pivot_wider(., names_from = Trait.Rhizomorphs, values_from = Tips, values_fill = 0) %>% 
+  transmute(Tree = Tree,
+            norhizo = n,
+            rhizo = y)# dropped m column, may have to revisit?
+
+#Investigate "m" values for rhizomorphs
+#pygmy_M = filter(pygmy.clean, Trait.Rhizomorphs == "m") # decided these were unknown, and to drop them.
+
+mendo_trait_table <- left_join(mendo_trait_table_foraging, mendo_trait_table_rhizo) %>% 
+  select(-Tree)
+
+#mendo_trait_matrix <- as.matrix(mendo_trait_table)
+```
+
+
+#Relativize MENDO tables
+```{r}
+#MENDO TRAITS
+
+mendo_rel_traits <- mendo_trait_table %>%
+    mutate(sumAbund = select(., short:rhizo) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  mutate(short = short/sumAbund, 
+         medium = medium/sumAbund,
+         long = long/sumAbund,
+         norhizo = norhizo/ sumAbund, 
+         rhizo = rhizo/sumAbund) %>% 
+  mutate(sumAbund = NULL)
+
+
+#TEJON OTU
+
+mendo_rel_OTU <- mendo_OTU_table %>%
+    mutate(sumAbund = select(., c(1:82,)) %>% 
+             rowSums(na.rm = TRUE)) #%>% 
+  #relocate(sumAbund, .after = enviro)
+
+for(i in 1:ncol(mendo_rel_OTU)) {
+ mendo_rel_OTU[,i] <- mendo_rel_OTU[,i]/mendo_rel_OTU$sumAbund
+  }
+mendo_rel_OTU <- mendo_rel_OTU %>% 
+  mutate(sumAbund = select(., c(1:83,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  mutate(sumAbund = NULL)
+```
+
+#Generate Mendo Matrices
+```{r}
+mendo_OTU_matrix <- as.matrix(mendo_rel_OTU)
+mendo_trait_matrix <- as.matrix(mendo_rel_traits)
 
 ```
 
-# Consolidate Matrices for Mendocino (pygmy) + Tejon
+#Combine Matrices to push to NMDS
+```{r}
+# try merge
+wide <- ncol(erlandson_OTU_matrix) + ncol(mendo_OTU_matrix)
+#merge_erl <- merge(erlandson_OTU_matrix, mendo_OTU_matrix,)#combines columns of same name while converting their values to 0 which is not helpful to say the least. my ideal function adds, for example, the shared column 3 (cenococcum geophilum) from each matrix to each other. i dont know about join, maybe rbind?
+
+#Just going to use Holly's code ftm
+
+She:
+  1- makes vectors of columns and row names (including tree id) -we should use earlier dataframes. maybe thats more tidyverse-ible
+2- makes an empty mtrix
+3-transfers values from previously created matrices?
+  4-...easy enough to trim tree labels. 
+
+
+```
+
+# Consolidate Matrices for Mendocino (pygmy) + Tejon (Holly)
 
 ```{r}
 OTU_list <- unique(c(colnames(tree.matrix),colnames(tejon.trees.ecto)[4:120]))
