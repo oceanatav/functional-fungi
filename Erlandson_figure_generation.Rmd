@@ -327,13 +327,11 @@ for(i in 4:dim(tejon.trees.ecto)[2]){
 tejon_rel_traits <- tejon.tree.traits %>%
     mutate(sumAbund = select(., short:rhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  mutate(short = short/sumAbund, 
+  transmute(short = short/sumAbund, 
          long = long/sumAbund, 
          medium = medium/sumAbund, 
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund) %>% 
-  mutate(sumAbund = NULL)
-
+         rhizo = rhizo/sumAbund)
 
 #TEJON OTU
 
@@ -348,8 +346,16 @@ for(i in 5:ncol(tejon_rel_OTU)) {
 tejon_rel_OTU <- tejon_rel_OTU %>% 
   mutate(sumAbund = select(., c(5:121,)) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  mutate(sumAbund = NULL)
+  mutate(sumAbund = NULL,
+         site = NULL,
+         enviro = NULL,
+         tree=NULL)
 
+```
+#TEJON matrices
+```{r}
+tejon_OTU_matrix <- as.matrix(tejon_rel_OTU)
+tejon_trait_matrix <- as.matrix(tejon_rel_traits)
 ```
 
 
@@ -421,7 +427,7 @@ pygmy.tree<-aggregate(pygmy.clean$No.Tips,
                     pygmy.clean$Trait.Rhizomorphs)
                   ,sum)
 
-colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
+#colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
 
 head(pygmy.tree)
 
@@ -566,15 +572,14 @@ mendo_trait_table <- left_join(mendo_trait_table_foraging, mendo_trait_table_rhi
 mendo_rel_traits <- mendo_trait_table %>%
     mutate(sumAbund = select(., short:rhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  mutate(short = short/sumAbund, 
+  transmute(short = short/sumAbund, 
          medium = medium/sumAbund,
          long = long/sumAbund,
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund) %>% 
-  mutate(sumAbund = NULL)
+         rhizo = rhizo/sumAbund) 
 
 
-#TEJON OTU
+#MENDO OTU
 
 mendo_rel_OTU <- mendo_OTU_table %>%
     mutate(sumAbund = select(., c(1:82,)) %>% 
@@ -584,9 +589,8 @@ mendo_rel_OTU <- mendo_OTU_table %>%
 for(i in 1:ncol(mendo_rel_OTU)) {
  mendo_rel_OTU[,i] <- mendo_rel_OTU[,i]/mendo_rel_OTU$sumAbund
   }
+
 mendo_rel_OTU <- mendo_rel_OTU %>% 
-  mutate(sumAbund = select(., c(1:83,)) %>% 
-             rowSums(na.rm = TRUE)) %>% 
   mutate(sumAbund = NULL)
 ```
 
@@ -600,79 +604,147 @@ mendo_trait_matrix <- as.matrix(mendo_rel_traits)
 #Combine Matrices to push to NMDS
 ```{r}
 # try merge
-wide <- ncol(erlandson_OTU_matrix) + ncol(mendo_OTU_matrix)
 #merge_erl <- merge(erlandson_OTU_matrix, mendo_OTU_matrix,)#combines columns of same name while converting their values to 0 which is not helpful to say the least. my ideal function adds, for example, the shared column 3 (cenococcum geophilum) from each matrix to each other. i dont know about join, maybe rbind?
 
 #Just going to use Holly's code ftm
 
-She:
-  1- makes vectors of columns and row names (including tree id) -we should use earlier dataframes. maybe thats more tidyverse-ible
-2- makes an empty mtrix
-3-transfers values from previously created matrices?
-  4-...easy enough to trim tree labels. 
+#She:
+ # 1- makes vectors of columns and row names (including tree id) -we should use earlier dataframes. maybe thats more tidyverse-ible
+#2- makes an empty mtrix
+#3-transfers values from previously created matrices?
+#  4-...easy enough to trim tree labels. 
+
+#Combo OTU
+
+  ##Make columns and rows
+      ###Columns
+
+OTU_list <- unique(c(colnames(mendo_OTU_matrix), colnames(tejon_OTU_matrix), colnames(erlandson_OTU_matrix)))
+
+#OTUlistdf <- as.data.frame(OTU_list) 
+#View(OTUlistdf) #check names
+
+      ###Rows
+
+tree_list <- 1:(dim(tejon_OTU_matrix)[1]+dim(mendo_OTU_matrix)[1] + dim(erlandson_OTU_matrix)[1])
+
+  ##Make empty matrix the with our columns and rows
+
+combo_OTU_matrix <- matrix(rep(0,length(tree_list)*length(OTU_list)),nrow=length(tree_list),ncol=length(OTU_list))
+
+colnames(combo_OTU_matrix) <- OTU_list
+rownames(combo_OTU_matrix) <- tree_list
 
 
+  ## Now to fill in the values
+
+for(i in 1:dim(combo_OTU_matrix)[2]){
+	OTU <- colnames(combo_OTU_matrix)[i]
+	
+	# Find OTU data for tejon
+	colnum <- 0
+	for(j in 1:dim(tejon_OTU_matrix)[2]){
+		if(colnames(tejon_OTU_matrix)[j]==OTU){
+			colnum <- j 	}	}	
+	if(colnum==0){ 	tejon.abun <- rep(0,dim(tejon_OTU_matrix)[1]) 	} 
+	if(colnum!=0){ 	tejon.abun <- tejon_OTU_matrix[,colnum] }
+
+	# Find OTU data for mendocino	
+	colnum <- 0
+	for(j in 1:dim(mendo_OTU_matrix)[2]){
+		if(colnames(mendo_OTU_matrix)[j]==OTU){
+			colnum <- j  } 	}	
+	if(colnum==0){	mendo.abun <- rep(0,dim(mendo_OTU_matrix)[1]) 	} 
+	if(colnum!=0){	mendo.abun <- mendo_OTU_matrix[,colnum]	}
+	
+	#Find OTU data for erlandson (Oceana)
+	
+	colnum<- 0
+	for(j in 1:ncol(erlandson_OTU_matrix)) {
+	  if(colnames(erlandson_OTU_matrix)[j]==OTU){
+	    colnum <- j }	}
+	if(colnum == 0){ erlandson.abun <- rep(0, nrow(erlandson_OTU_matrix))}
+	if(colnum != 0){erlandson.abun <- erlandson_OTU_matrix[,colnum]}
+	
+	combo_OTU_matrix[,i] <- c(tejon.abun,mendo.abun, erlandson.abun)
+	
+}
+# In the above for loop she creates an object (colnum). then loops through the columns of a site-specific matrix (eg tejon, mendocino, erlandson's study) and sets the object equal to that value (column name/OTU). if a column name matching that in the site-specific matrix is found, then colnum is not equal to zero and the data from that column (rows) are saved to an object (X.abun). ...
+
+#Combo Traits
+
+# tree_list can function as our rows, columns are all the same(short med long norhizo rhizo)
+
+# cant i just rbind then--apparently not for 3 but tidyvers has bind_rows
+
+#combo_trait_matrix <- bind_rows(mendo_trait_matrix,tejon_trait_matrix,erlandson_trait_matrix, .id=NULL)
+
+combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matrix,erlandson_trait_matrix))
+# per stack overflow advice. 
 ```
 
 # Consolidate Matrices for Mendocino (pygmy) + Tejon (Holly)
 
 ```{r}
-OTU_list <- unique(c(colnames(tree.matrix),colnames(tejon.trees.ecto)[4:120]))
+#OTU_list <- unique(c(colnames(tree.matrix),colnames(tejon.trees.ecto)[4:120]))
 #length(OTU_list)
 #makes list of OTUs in Mendo and Tejon datasets
 
-tree_list <- 1:(dim(tejon.trees.ecto)[1]+dim(tree.matrix)[1])
-#makes list of trees in Mendo and Tejon datasets
+#tree_list <- 1:(dim(tejon_OTU_matrix)[1]+dim(mendo_OTU_matrix)[1])
+#makes list of number of trees in Mendo and Tejon datasets (basically a list of 1-59)
 
-combo.matrix <- matrix(rep(0,length(tree_list)*length(OTU_list)),nrow=length(tree_list),ncol=length(OTU_list))
+#combo.matrix <- matrix(rep(0,length(tree_list)*length(OTU_list)),nrow=length(tree_list),ncol=length(OTU_list))
 #creates empty matrix
 
 #dim(combo.matrix)
 
-colnames(combo.matrix) <- OTU_list
-rownames(combo.matrix) <- tree_list
+#colnames(combo.matrix) <- OTU_list
+#rownames(combo.matrix) <- tree_list
 
-for(i in 1:dim(combo.matrix)[2]){
-	OTU <- colnames(combo.matrix)[i]
+#for(i in 1:dim(combo.matrix)[2]){
+#	OTU <- colnames(combo.matrix)[i]
 	
 	# Find OTU data for tejon
-	colnum <- 0
-	for(j in 1:dim(tejon.trees.ecto)[2]){
-		if(colnames(tejon.trees.ecto)[j]==OTU){
-			colnum <- j 	}	}	
-	if(colnum==0){ 	tejon.abun <- rep(0,dim(tejon.trees.ecto)[1]) 	} 
-	if(colnum!=0){ 	tejon.abun <- tejon.trees.ecto[,colnum] }
+#	colnum <- 0
+#	for(j in 1:dim(tejon.trees.ecto)[2]){
+#		if(colnames(tejon.trees.ecto)[j]==OTU){
+#			colnum <- j 	}	}	
+#	if(colnum==0){ 	tejon.abun <- rep(0,dim(tejon.trees.ecto)[1]) 	} 
+#	if(colnum!=0){ 	tejon.abun <- tejon.trees.ecto[,colnum] }
 
 	# Find OTU data for mendocino	
-	colnum <- 0
-	for(j in 1:dim(tree.matrix)[2]){
-		if(colnames(tree.matrix)[j]==OTU){
-			colnum <- j  } 	}	
-	if(colnum==0){	mendo.abun <- rep(0,dim(tree.matrix)[1]) 	} 
-	if(colnum!=0){	mendo.abun <- tree.matrix[,colnum]	}
+#	colnum <- 0
+#	for(j in 1:dim(tree.matrix)[2]){
+#		if(colnames(tree.matrix)[j]==OTU){
+#			colnum <- j  } 	}	
+#	if(colnum==0){	mendo.abun <- rep(0,dim(tree.matrix)[1]) 	} 
+#	if(colnum!=0){	mendo.abun <- tree.matrix[,colnum]	}
 	
-	combo.matrix[,i] <- c(tejon.abun,mendo.abun)
+#	combo.matrix[,i] <- c(tejon.abun,mendo.abun)
 	
-}
+#}
 
 
-combo.trait.matrix <- matrix(rep(0,length(tree_list)*5),nrow=length(tree_list),ncol=5)
-colnames(combo.trait.matrix) <- c('short','med','long','rhizo','norhizo')
-rownames(combo.trait.matrix) <- tree_list
+#combo.trait.matrix <- matrix(rep(0,length(tree_list)*5),nrow=length(tree_list),ncol=5)
+#colnames(combo.trait.matrix) <- c('short','med','long','rhizo','norhizo')
+#rownames(combo.trait.matrix) <- tree_list
 
-combo.trait.matrix <- as.data.frame(combo.trait.matrix)
+#combo.trait.matrix <- as.data.frame(combo.trait.matrix)
 
-head(tejon.tree.traits)
-head(tree.trait.matrix.cond)
-colnames(tree.trait.matrix.cond) <- c('short','long','med','contact','nohydro','hydro','norhizo','rhizo')
-mendo.tree.traits <- as.data.frame(tree.trait.matrix.cond)
-combo.trait.matrix$short <- c(tejon.tree.traits$short, mendo.tree.traits$short)
-combo.trait.matrix$med <- c(tejon.tree.traits$medium,mendo.tree.traits$med)
-combo.trait.matrix$long <- c(tejon.tree.traits$long,mendo.tree.traits$long)
-combo.trait.matrix$rhizo <- c(tejon.tree.traits$rhizo,mendo.tree.traits$rhizo)
-combo.trait.matrix$norhizo <- c(tejon.tree.traits$norhizo,mendo.tree.traits$norhizo)
+#head(tejon.tree.traits)
+#head(tree.trait.matrix.cond)
+#colnames(tree.trait.matrix.cond) <- c('short','long','med','contact','nohydro','hydro','norhizo','rhizo')
+#mendo.tree.traits <- as.data.frame(tree.trait.matrix.cond)
+#combo.trait.matrix$short <- c(tejon.tree.traits$short, mendo.tree.traits$short)
+#combo.trait.matrix$med <- c(tejon.tree.traits$medium,mendo.tree.traits$med)
+#combo.trait.matrix$long <- c(tejon.tree.traits$long,mendo.tree.traits$long)
+#combo.trait.matrix$rhizo <- c(tejon.tree.traits$rhizo,mendo.tree.traits$rhizo)
+#combo.trait.matrix$norhizo <- c(tejon.tree.traits$norhizo,mendo.tree.traits$norhizo)
 ```
-
+#NMDS
+```{r}
+#https://rpubs.com/CPEL/NMDS
+```
 
 ## NMDS Code Tejon + Mendocino (Holly)
 
