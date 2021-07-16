@@ -643,10 +643,10 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
 	
 	# Find OTU data for tejon
 	colnum <- 0
-	for(j in 1:dim(tejon_OTU_matrix)[2]){
+	for(j in 1:ncol(tejon_OTU_matrix)){
 		if(colnames(tejon_OTU_matrix)[j]==OTU){
 			colnum <- j 	}	}	
-	if(colnum==0){ 	tejon.abun <- rep(0,dim(tejon_OTU_matrix)[1]) 	} 
+	if(colnum==0){ 	tejon.abun <- rep(0,nrow(tejon_OTU_matrix)) 	} 
 	if(colnum!=0){ 	tejon.abun <- tejon_OTU_matrix[,colnum] }
 
 	# Find OTU data for mendocino	
@@ -654,19 +654,19 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
 	for(j in 1:dim(mendo_OTU_matrix)[2]){
 		if(colnames(mendo_OTU_matrix)[j]==OTU){
 			colnum <- j  } 	}	
-	if(colnum==0){	mendo.abun <- rep(0,dim(mendo_OTU_matrix)[1]) 	} 
+	if(colnum==0){	mendo.abun <- rep(0,nrow(mendo_OTU_matrix)) 	} 
 	if(colnum!=0){	mendo.abun <- mendo_OTU_matrix[,colnum]	}
 	
 	#Find OTU data for erlandson (Oceana)
 	
-	colnum<- 0
+	colnum <- 0
 	for(j in 1:ncol(erlandson_OTU_matrix)) {
 	  if(colnames(erlandson_OTU_matrix)[j]==OTU){
 	    colnum <- j }	}
 	if(colnum == 0){ erlandson.abun <- rep(0, nrow(erlandson_OTU_matrix))}
 	if(colnum != 0){erlandson.abun <- erlandson_OTU_matrix[,colnum]}
 	
-	combo_OTU_matrix[,i] <- c(tejon.abun,mendo.abun, erlandson.abun)
+	combo_OTU_matrix[,i] <- c(tejon.abun, mendo.abun, erlandson.abun)
 	
 }
 # In the above for loop she creates an object (colnum). then loops through the columns of a site-specific matrix (eg tejon, mendocino, erlandson's study) and sets the object equal to that value (column name/OTU). if a column name matching that in the site-specific matrix is found, then colnum is not equal to zero and the data from that column (rows) are saved to an object (X.abun). ...
@@ -744,6 +744,20 @@ combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matr
 #NMDS
 ```{r}
 #https://rpubs.com/CPEL/NMDS
+
+OTU_NMDS <- metaMDS(as.matrix(combo_OTU_matrix), k = 2, distance = "bray")
+stressplot(OTU_NMDS)
+
+trait_NMDS <- metaMDS(as.matrix(combo_trait_matrix), k = 2)
+
+plot(OTU_NMDS)
+plot(trait_NMDS)
+
+#SHould I be inputting dissimilarity data instead???
+#I can instead push this data thru the phyloseq package (short = species for trait table)
+# Try phyloseq
+
+
 ```
 
 ## NMDS Code Tejon + Mendocino (Holly)
@@ -768,7 +782,7 @@ plot(speciesNMDS$points[,1],speciesNMDS$points[,2],pch=c(21,22)[unclass(siteIDs)
 plot(traitNMDS$points[,1], traitNMDS$points[,2],pch=c(21,22)[unclass(siteIDs)],main='Traits',bg=c('black','white')[as.factor(aridIDs)],ylim=c(-1,1.2),cex=1.5,xlab='NMDS 1',ylab='NMDS 2');legend(-1.3,1.25,c('Arid, Tejon','Wet, Tejon','Arid, Mendo.','Wet, Mendo.'),pch=c(21,21,22,22),pt.cex=1.5,pt.bg=c('white','black','white','black'),bg='white'); #ordiellipse(traitNMDS,aridIDs)
 
 ```
-### APpendix##
+### Appendix##
 ```{r Surplus Code}
 
 ## Summary Table w/ Two Treatments ###
