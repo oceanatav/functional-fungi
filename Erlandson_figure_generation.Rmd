@@ -165,8 +165,11 @@ erlandson_rel_traits <- erlandson_traits %>%
 #ERLANDSON OTU
 
 erlandson_rel_OTU <- erlandson_OTU_add_enviro %>% 
-  select(-site, -Tree_site, -enviro)
+  select(-site, -enviro)
+erlandson_rel_OTU <- column_to_rownames(erlandson_rel_OTU, var = "Tree_site")
 #ERlandson OTU is already relativized
+
+erlandson_tree_names <- unique(erlandson_OTU$Tree_site)
 ```
 
 #Make ERLANDSON matrices
@@ -348,9 +351,10 @@ tejon_rel_OTU <- tejon_rel_OTU %>%
              rowSums(na.rm = TRUE)) %>% 
   mutate(sumAbund = NULL,
          site = NULL,
-         enviro = NULL,
-         tree=NULL)
+         enviro = NULL)
+tejon_rel_OTU <- column_to_rownames(tejon_rel_OTU, var = "tree")
 
+tejon_tree_names <- unique(rownames(tejon.trees.ecto$tree))
 ```
 #TEJON matrices
 ```{r}
@@ -522,7 +526,6 @@ mendo_OTU_table <- pygmy.tree %>%
   arrange(.,Tree) %>% 
   ungroup(Tree) %>% 
   pivot_wider(., names_from = SpeciesCode, values_from = Tips) %>% 
-  mutate(Tree = NULL) %>% 
   replace(., is.na(.), 0)
   
 #mendo_OTU_matrix<- as.matrix(mendo_OTU_table)
@@ -560,7 +563,6 @@ mendo_trait_table_rhizo <- pygmy.core %>%
 
 mendo_trait_table <- left_join(mendo_trait_table_foraging, mendo_trait_table_rhizo) %>% 
   select(-Tree)
-
 #mendo_trait_matrix <- as.matrix(mendo_trait_table)
 ```
 
@@ -582,16 +584,18 @@ mendo_rel_traits <- mendo_trait_table %>%
 #MENDO OTU
 
 mendo_rel_OTU <- mendo_OTU_table %>%
-    mutate(sumAbund = select(., c(1:82,)) %>% 
+    mutate(sumAbund = select(., c(2:83,)) %>% 
              rowSums(na.rm = TRUE)) #%>% 
   #relocate(sumAbund, .after = enviro)
 
-for(i in 1:ncol(mendo_rel_OTU)) {
+for(i in 2:ncol(mendo_rel_OTU)) {
  mendo_rel_OTU[,i] <- mendo_rel_OTU[,i]/mendo_rel_OTU$sumAbund
   }
 
 mendo_rel_OTU <- mendo_rel_OTU %>% 
   mutate(sumAbund = NULL)
+
+mendo_rel_OTU <- column_to_rownames(mendo_rel_OTU, var = "Tree")  
 ```
 
 #Generate Mendo Matrices
@@ -621,19 +625,21 @@ mendo_trait_matrix <- as.matrix(mendo_rel_traits)
 
 OTU_list <- unique(c(colnames(mendo_OTU_matrix), colnames(tejon_OTU_matrix), colnames(erlandson_OTU_matrix)))
 
+#Tree_names <- c(mendo_tree_names, tejon_tree_names, erlandson_tree_names)
+#length(Tree_names)
 #OTUlistdf <- as.data.frame(OTU_list) 
 #View(OTUlistdf) #check names
 
       ###Rows
-
-tree_list <- 1:(dim(tejon_OTU_matrix)[1]+dim(mendo_OTU_matrix)[1] + dim(erlandson_OTU_matrix)[1])
+tree_names <- c(rownames(mendo_OTU_matrix), rownames(tejon_OTU_matrix), rownames(erlandson_OTU_matrix))
+#tree_list <- 1:(dim(tejon_OTU_matrix)[1]+dim(mendo_OTU_matrix)[1] + dim(erlandson_OTU_matrix)[1])
 
   ##Make empty matrix the with our columns and rows
 
-combo_OTU_matrix <- matrix(rep(0,length(tree_list)*length(OTU_list)),nrow=length(tree_list),ncol=length(OTU_list))
+combo_OTU_matrix <- matrix(rep(0,length(tree_names)*length(OTU_list)),nrow=length(tree_names),ncol=length(OTU_list))
 
 colnames(combo_OTU_matrix) <- OTU_list
-rownames(combo_OTU_matrix) <- tree_list
+rownames(combo_OTU_matrix) <- tree_names
 
 
   ## Now to fill in the values
@@ -681,6 +687,13 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
 
 combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matrix,erlandson_trait_matrix))
 # per stack overflow advice. 
+
+
+#tax <- read_rds(file="taxa.rds")
+#sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>% # drop all observations where we dont have a DNA sample
+ #column_to_rownames(var = "DNA_SampleID")
+#OTU <- read_rds("seqtab-nochimtaxa.rds") 
+
 ```
 
 # Consolidate Matrices for Mendocino (pygmy) + Tejon (Holly)
@@ -744,18 +757,30 @@ combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matr
 #NMDS
 ```{r}
 #https://rpubs.com/CPEL/NMDS
+t_combo_OTU_matrix <- t(combo_OTU_matrix) 
 
-OTU_NMDS <- metaMDS(as.matrix(combo_OTU_matrix), k = 2, distance = "bray")
-stressplot(OTU_NMDS)
+df_t_combo <- as.data.frame(t_combo_OTU_matrix)
+df_t_combo <- df_t_combo %>% mutate(sum = select(., 1:ncol(.)) %>% rowSums(na.rm = TRUE)) %>% filter(tibble_t_combo$sum == 0) 
+
+
+spp <- colnames(combo_OTU_matrix)
+OTU_NMDS <- metaMDS(as.matrix(df_t_combo), k = 2, distance = "bray")
+
+
 
 trait_NMDS <- metaMDS(as.matrix(combo_trait_matrix), k = 2)
+par(mfrow=c(1,2))
+plot(OTU_NMDS, type = "t", display = c("site"))
+stressplot(OTU_NMDS)
+plot(trait_NMDS, type = "t", display = c("species"))
 
-plot(OTU_NMDS)
-plot(trait_NMDS)
-
+names(trait_NMDS)
 #SHould I be inputting dissimilarity data instead???
 #I can instead push this data thru the phyloseq package (short = species for trait table)
 # Try phyloseq
+
+#http://joey711.github.io/phyloseq-demo/phyloseq-demo.html # PHYLOSEQ DEMO
+
 
 
 ```
