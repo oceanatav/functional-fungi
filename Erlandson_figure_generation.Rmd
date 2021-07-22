@@ -41,6 +41,10 @@ Goals:
 ```{r message=FALSE}
 library(vegan)
 library(tidyverse)
+#install.packages("BiocManager")
+#library(BiocManager)
+#BiocManager::install("phyloseq")
+library(phyloseq)
 ```
 
 #Read in Erlandson Matrices
@@ -58,7 +62,17 @@ erlandson_traits_raw <- read.csv(as.matrix("trait_OTU.csv")) %>% mutate(X=NULL)
 mendo_metadata <- read.csv("TraitAnalysisforOceana/Curated_Assembly_3July2012.csv")
 tejon_metadata <- read.csv("TraitAnalysisforOceana/ecto_OTUs.csv") 
 erlandson_metadata_raw <- read.csv("erlandson_generated_metadata.csv") 
-erlandson_metadata <- erlandson_metadata_raw %>% drop_na(Ecto_ID)
+erlandson_metadata <- erlandson_metadata_raw 
+for(i in 1:nrow(erlandson_metadata)){
+  if(erlandson_metadata$Ecto_spp[i] == "Clavulinopsis_helvola"){
+    erlandson_metadata$Ecto_ID[i] = "Clavulinopsis helvola"
+  }
+  if(erlandson_metadata$Ecto_spp[i] == "Meliniomyces1"){
+    erlandson_metadata$Ecto_ID[i] = "Meliniomyces sp."
+  }
+}
+erlandson_metadata <- erlandson_metadata %>% drop_na(Ecto_ID)
+
 mendo_names <- mendo_metadata %>% select(SpeciesCode, BlastID) #%>% mutate(Species = SpeciesCode)
 
 tejon_names <- tejon_metadata %>% select(OUT_MatchwMendo,species) #%>% mutate (Species = OUT_MatchwMendo)
@@ -73,13 +87,13 @@ mendo_tejon_join$ID <- gsub("_NA", "", as.character(mendo_tejon_join$ID))
 mendo_tejon_join$ID <- gsub("_", " ", as.character(mendo_tejon_join$ID))
 mendo_tejon_join <- mendo_tejon_join[mendo_tejon_join$Species != "NA",]
 
-ref_ID <- mendo_tejon_join
+ref_ID <- mendo_tejon_join %>% distinct()
 ```
 
 #Compare names of ERLANDSON dataset to existing 
 ```{r Erlandson for loop}
 # Use erlandson_names
-erlandson_metadata <- erlandson_metadata_raw %>% drop_na(Ecto_ID)
+
 
 erlandson_names <- erlandson_metadata %>% select (Tree_site, Ecto_ID, Ecto_spp, Tip) %>% mutate(ref_name = numeric(nrow(.)))
 
@@ -97,8 +111,12 @@ for(i in 1:nrow(erlandson_names)) {
    }
 }
 
+unique(erlandson_names$ref_name) # [1] "0"  "17" "3" #so the only matches were to Species Code/OTU "17" and "3"
+
+#DONT FORGET TO WRITE SOMETHING THAT ADDS THE OTU COL AND ID TO REF_ID
+
 erlandson_OTU <- erlandson_OTU_raw
-erlandson_OTU_combined <- erlandson_OTU %>% 
+erlandson_OTU_combined <- erlandson_OTU %>% select(order(colnames(.))) %>% 
   rename("17" = Cortinarius1,
          "3" = Cenococcum_geophilum)
 # ADD new spp names to ref_ID
@@ -116,7 +134,7 @@ erlandson_OTU_combined <- erlandson_OTU %>%
 # %in% function may be faster erlandson_names$Ecto_ID[i] %in% ref_ID$ID
 ```
 
-```{r Add dry/wet labels to tejon matrices}
+```{r Add dry/wet labels to erlandson matrices}
 label_erlandson <- erlandson_metadata %>% group_by(Plot, 
            mean, 
            Tree_site, 
@@ -165,8 +183,8 @@ erlandson_rel_traits <- erlandson_traits %>%
 #ERLANDSON OTU
 
 erlandson_rel_OTU <- erlandson_OTU_add_enviro %>% 
-  select(-site, -enviro)
-erlandson_rel_OTU <- column_to_rownames(erlandson_rel_OTU, var = "Tree_site")
+  select(-site, -enviro) 
+erlandson_rel_OTU <- column_to_rownames(erlandson_rel_OTU, var = "Tree_site") 
 #ERlandson OTU is already relativized
 
 erlandson_tree_names <- unique(erlandson_OTU$Tree_site)
@@ -689,9 +707,8 @@ combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matr
 # per stack overflow advice. 
 
 
-#tax <- read_rds(file="taxa.rds")
-#sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>% # drop all observations where we dont have a DNA sample
- #column_to_rownames(var = "DNA_SampleID")
+tax <- read_rds(file="taxa.rds")
+sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>%column_to_rownames(var = "DNA_SampleID")
 #OTU <- read_rds("seqtab-nochimtaxa.rds") 
 
 ```
@@ -754,6 +771,29 @@ combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matr
 #combo.trait.matrix$rhizo <- c(tejon.tree.traits$rhizo,mendo.tree.traits$rhizo)
 #combo.trait.matrix$norhizo <- c(tejon.tree.traits$norhizo,mendo.tree.traits$norhizo)
 ```
+#Create PHYLOSEQ objects for OTU NMDS
+https://joey711.github.io/phyloseq/import-data.html
+```{r}
+#Figure out how to create rownames
+#ERLANDSON 
+  ##Sample table
+erl_sam <- sample_data(erlandson_metadata)
+  ##Taxa table
+erl_tax <-erlandson_metadata %>% select(Ecto_spp, Phylum, Order, Genus, Species, Subspecies, Ecto_ID) %>% arrange(Ecto_spp) %>% mutate(Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cortinarius1", "17"),
+                                                                                                     Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cenococcum_geophilum", "3")) %>% distinct(.)
+
+erl_names <- colnames(erlandson_OTU_matrix)
+erl_tax_names <- erl_tax$Ecto_spp
+erl_names == erl_tax_names
+#TEJON
+  ##Sample table
+  ##Taxa table
+#MENDO
+  ##Sample table
+  ##Taxa table
+```
+
+
 #NMDS
 ```{r}
 #https://rpubs.com/CPEL/NMDS
