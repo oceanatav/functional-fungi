@@ -303,7 +303,7 @@ norhizo <- tejon.ecto.traits[tejon.ecto.traits$type=='r_false',]$OTU_ID
 # Function to Test if Fungus has a trait
 ```{r may want to write a different method}
 
-#OCHO roughhh interp: this function pulls in abundance data per OTU per tree(id hope), relating trait w OTU using tejon.ecto.traits table
+#roughhh interp: this function pulls in abundance data per OTU per tree(id hope), relating trait w OTU using tejon.ecto.traits table
 #Continue to try to find a tidyverse way to pull in the above lines and this for loop
 for(i in 4:dim(tejon.trees.ecto)[2]){
 	# for each fungus
@@ -774,23 +774,38 @@ sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>
 #Create PHYLOSEQ objects for OTU NMDS
 https://joey711.github.io/phyloseq/import-data.html
 ```{r}
-#Figure out how to create rownames
 #ERLANDSON 
+  ##OTU table
+erl_otu <- otu_table(erlandson_OTU_matrix, taxa_are_rows = F)
   ##Sample table
-erl_sam <- sample_data(erlandson_metadata)
+erl_sam <- erlandson_metadata %>% select(Tree_site, Plot, Site, Salix.spp, mean) %>% distinct() %>% column_to_rownames(., var = "Tree_site") %>% mutate(enviro = if_else(mean < (-.5), "arid", "mesic")) 
+erl_sam <- sample_data(erl_sam)
   ##Taxa table
 erl_tax <-erlandson_metadata %>% select(Ecto_spp, Phylum, Order, Genus, Species, Subspecies, Ecto_ID) %>% arrange(Ecto_spp) %>% mutate(Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cortinarius1", "17"),
                                                                                                      Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cenococcum_geophilum", "3")) %>% distinct(.)
 
-erl_names <- colnames(erlandson_OTU_matrix)
-erl_tax_names <- erl_tax$Ecto_spp
-erl_names == erl_tax_names
+#erl_ps <- phyloseq(erl_otu,erl_tax, erl_sam)
+#sample_names(erl_ps)
+#erl_ps_ord <- ordinate(erl_ps, method = "NMDS", distance = "bray")
+#p_erl = plot_ordination(erl_ps, erl_ps_ord)
+#print(p_erl)
+#sample_names(erl_sam)
+#erl_names <- colnames(erlandson_OTU_matrix)
+#erl_tax_names <- erl_tax$Ecto_spp
+#erl_names == erl_tax_names
 #TEJON
   ##Sample table
   ##Taxa table
 #MENDO
   ##Sample table
   ##Taxa table
+
+#Combo
+  ##OTU table
+com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F)
+  ##"Taxa" table
+
+
 ```
 
 
