@@ -163,7 +163,8 @@ erlandson_OTU_add_enviro <- label_erlandson %>%
 #ERLANDSON TRAITS
 
 erlandson_traits <- erlandson_traits_raw %>% 
-  transmute(short= contact + short,
+  transmute(Tree_site = Tree_site,
+            short= contact + short,
             medium = medium,
             long = rep(0),
             rhizo= r_true,
@@ -173,11 +174,19 @@ erlandson_traits <- erlandson_traits_raw %>%
 erlandson_rel_traits <- erlandson_traits %>% 
   mutate(sumAbund = select(., short:norhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  transmute(short = short/sumAbund, 
+  transmute(Tree = Tree_site,
+            short = short/sumAbund, 
          medium = medium/sumAbund,
          long = long/sumAbund,
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund)
+         rhizo = rhizo/sumAbund) %>% 
+   group_by(Tree) %>% 
+  summarise(short = sum(short),
+           medium = sum(medium),
+           long = sum(long),
+           rhizo = sum(rhizo),
+           norhizo = sum(norhizo)) %>% 
+     column_to_rownames(., var = "Tree")
 
 
 #ERLANDSON OTU
@@ -348,11 +357,19 @@ for(i in 4:dim(tejon.trees.ecto)[2]){
 tejon_rel_traits <- tejon.tree.traits %>%
     mutate(sumAbund = select(., short:rhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
-  transmute(short = short/sumAbund, 
+  transmute(tree = tree,
+         short = short/sumAbund, 
          long = long/sumAbund, 
          medium = medium/sumAbund, 
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund)
+         rhizo = rhizo/sumAbund) %>% 
+   group_by(tree) %>% 
+  summarise(short = sum(short),
+           medium = sum(medium),
+           long = sum(long),
+           rhizo = sum(rhizo),
+           norhizo = sum(norhizo)) %>% 
+     column_to_rownames(., var = "tree")
 
 #TEJON OTU
 
@@ -580,7 +597,13 @@ mendo_trait_table_rhizo <- pygmy.core %>%
 #pygmy_M = filter(pygmy.clean, Trait.Rhizomorphs == "m") # decided these were unknown, and to drop them.
 
 mendo_trait_table <- left_join(mendo_trait_table_foraging, mendo_trait_table_rhizo) %>% 
-  select(-Tree)
+   group_by(Tree) %>% 
+  summarise(short = sum(short),
+           medium = sum(medium),
+           long = sum(long),
+           rhizo = sum(rhizo),
+           norhizo = sum(norhizo)) %>% 
+     column_to_rownames(., var = "Tree")
 #mendo_trait_matrix <- as.matrix(mendo_trait_table)
 ```
 
@@ -707,8 +730,8 @@ combo_trait_matrix <- do.call("rbind", list(mendo_trait_matrix, tejon_trait_matr
 # per stack overflow advice. 
 
 
-tax <- read_rds(file="taxa.rds")
-sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>%column_to_rownames(var = "DNA_SampleID")
+#tax <- read_rds(file="taxa.rds")
+#sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>%column_to_rownames(var = "DNA_SampleID")
 #OTU <- read_rds("seqtab-nochimtaxa.rds") 
 
 ```
@@ -775,14 +798,19 @@ sam <- read_rds("144L_Exp_Processed_BactAbund.rds") %>% drop_na(DNA_SampleID) %>
 https://joey711.github.io/phyloseq/import-data.html
 ```{r}
 #ERLANDSON 
-  ##OTU table
-erl_otu <- otu_table(erlandson_OTU_matrix, taxa_are_rows = F)
   ##Sample table
-erl_sam <- erlandson_metadata %>% select(Tree_site, Plot, Site, Salix.spp, mean) %>% distinct() %>% column_to_rownames(., var = "Tree_site") %>% mutate(enviro = if_else(mean < (-.5), "arid", "mesic")) 
-erl_sam <- sample_data(erl_sam)
+erl_sam <- erlandson_metadata %>% select(Tree_site, Plot, Site, Salix.spp, mean) %>% distinct() %>% column_to_rownames(., var = "Tree_site") %>%
+  mutate(enviro = if_else(mean < (-.5), "arid", "mesic"),
+         site = rep("cedar_creek")) 
+#erl_sam <- sample_data(erl_sam)
   ##Taxa table
-erl_tax <-erlandson_metadata %>% select(Ecto_spp, Phylum, Order, Genus, Species, Subspecies, Ecto_ID) %>% arrange(Ecto_spp) %>% mutate(Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cortinarius1", "17"),
-                                                                                                     Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cenococcum_geophilum", "3")) %>% distinct(.)
+erl_tax <-erlandson_metadata %>% 
+  select(Ecto_spp, Phylum, Order, Genus, Species, Subspecies, Ecto_ID) %>%
+  arrange(Ecto_spp) %>% 
+  mutate(Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cortinarius1", "17"),
+         Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cenococcum_geophilum", "3")) %>% 
+  distinct(.) %>%
+  column_to_rownames(., var = "Ecto_spp")
 
 #erl_ps <- phyloseq(erl_otu,erl_tax, erl_sam)
 #sample_names(erl_ps)
@@ -795,16 +823,101 @@ erl_tax <-erlandson_metadata %>% select(Ecto_spp, Phylum, Order, Genus, Species,
 #erl_names == erl_tax_names
 #TEJON
   ##Sample table
+tej_sam <- tejon.trees.ecto %>% 
+  select(site, enviro, tree) %>% 
+  distinct() %>%
+  column_to_rownames(., var = "tree") 
   ##Taxa table
+tej_tax <- tejon.ecto %>% select(OUT_MatchwMendo, kingdom,phylum,order,class, family,genus, species) %>% 
+  distinct() %>%
+  transmute(OUT_MatchwMendo = OUT_MatchwMendo,
+          Kingdom = kingdom,
+         Phylum = phylum,
+         Order = order,
+         Class = class,
+         Family = family,
+         Genus = genus,
+         Species = species) %>% 
+  column_to_rownames(., var = "OUT_MatchwMendo")
 #MENDO
   ##Sample table
+pygmy.clean$Tree <- as.character(pygmy.clean$Tree)
+mendo_sam <- pygmy.clean %>% 
+  select(Pygmy,Tree) %>% 
+  distinct() %>%
+  transmute(enviro = if_else(Pygmy == 1, "arid", "mesic"),
+            Tree = Tree,
+            site = rep("mendocino")) %>% 
+  column_to_rownames(., var = "Tree")
   ##Taxa table
+pygmy.clean$SpeciesCode <- as.character(pygmy.clean$SpeciesCode)
+mendo_tax <- pygmy.clean %>% select(SpeciesCode, BlastID) %>% 
+  separate(BlastID, into = c("Genus", "Species"), sep = "\\s")%>%
+  distinct(., SpeciesCode) %>% 
+  column_to_rownames(., var = "SpeciesCode")
 
 #Combo
   ##OTU table
 com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F)
   ##"Taxa" table
+com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax)
+com_tax <- tax_table(com_tax)
+  ##Sample table
+com_sam <- bind_rows(tej_sam, mendo_sam, erl_sam)
+com_sam <- sample_data(com_sam)
 
+com_ps <- phyloseq(com_otu,com_sam)
+```
+#Phyloseq objects for trait NMDS
+```{r}
+com_trait <- otu_table(combo_trait_matrix, taxa_are_rows = F)
+Trait_tree_names <- c(rownames(combo_trait_matrix))
+com_trait_tax <- as_tibble(combo_trait_matrix) #%>% mutate(trait = "")
+
+for(i in 1:nrow(com_trait_tax)) {
+  if(com_trait_tax$short[i] != 0){
+    com_trait_tax$short[i] = "short"}
+  if(com_trait_tax$medium[i] != 0){
+    com_trait_tax$medium[i] = "medium"}
+  if(com_trait_tax$long[i] != 0){
+    com_trait_tax$long[i] = "long"}
+  if(com_trait_tax$rhizo[i] != 0){
+    com_trait_tax$rhizo[i] = "rhizo"}
+  if(com_trait_tax$norhizo[i] != 0){
+    com_trait_tax$norhizo[i] = "norhizo"
+  }
+}
+com_tait_tax <-tax_table(com_trait_tax)
+com_trait_ps <- phyloseq(com_sam, com_trait, com_trait_tax)
+```
+
+#Phyloseq NMDS
+```{r}
+
+#Taxonomy distribution
+com_ps_ord <- ordinate(com_ps, method = "NMDS", distance = "bray")
+p_com = plot_ordination(com_ps, com_ps_ord)
+print(p_com)
+
+p2_com = plot_ordination(com_ps, com_ps_ord, type="samples", color="enviro") 
+print(p2_com)
+
+p3_com = plot_ordination(com_ps, com_ps_ord, type="samples", color="site") 
+
+print(p3_com)
+#Trait distribution
+com_trait_ps_ord <- ordinate(com_trait_ps, method = "NMDS", distance = "bray")
+p_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord)
+print(p_com_tr)
+
+p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="enviro") 
+print(p2_com_tr)
+#TO PLOT BY TRAIT
+#going to have to go back and take out line of code that sums tips abundances
+#will have to make new unique rownames for samples, retaing (or creating) site column as well as enviro and unique trait.
+p3_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="enviro") 
+
+print(p3_com)
 
 ```
 
@@ -836,7 +949,7 @@ names(trait_NMDS)
 
 #http://joey711.github.io/phyloseq-demo/phyloseq-demo.html # PHYLOSEQ DEMO
 
-
+plot(pygmy.clean$OM.Pct)
 
 ```
 
@@ -846,7 +959,7 @@ names(trait_NMDS)
 require(vegan)
 siteIDs <- c(rep(1,dim(tejon.trees.ecto)[1]),rep(2,dim(tree.matrix)[1]))
 
-pygmy<-pygmy.clean$Pygmy[match(row.names(tree.matrix),pygmy.clean$Tree)]
+pygmy<-pygmy.clean$Pygmy[match(row.names(tree_names),pygmy.clean$Tree)]
 
 aridIDs <- c(tejon.trees.ecto$enviro,pygmy)
 for(i in 1:length(aridIDs)){if(aridIDs[i]==3){aridIDs[i]<-0}}
