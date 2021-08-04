@@ -1,0 +1,47 @@
+---
+title: "Mendocino taxa annotation"
+author: "Oceana Tavasieff"
+date: "8/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+# Version: https://zenodo.org/record/1216257
+
+# Via: https://github.com/traitecoevo/fungaltraits
+
+#install.packages("devtools")
+#devtools::install_github("ropenscilabs/datastorr")
+#devtools::install_github("traitecoevo/fungaltraits")
+library(fungaltraits)
+
+library(readxl)
+```
+
+Goals for this document:
+  -import mendocino data and annotate by taxa (from Blast ID OR --better yet- by Genus) using fungaltraits db
+  
+```{r read in data}
+#fun_fun_db <-fungal_traits()
+#long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
+#fun_fun_traits <- colnames(fun_fun_db)
+mendo_tax_raw <- readRDS("mendo_tax.rds")
+
+annotate <- mendo_tax_raw %>% rename(ID = Species)
+
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% rename(., Genus = GENUS)
+taxonomy <- short_traits %>%  select(Phylum, Class, Order, Family, Genus)
+
+
+annotated <- left_join(annotate, taxonomy) %>% arrange(SpeciesCode) %>%
+  filter(duplicated(SpeciesCode) == FALSE) %>%  column_to_rownames(., var="SpeciesCode")
+
+saveRDS(annotated, "mendo_tax.rds")
+```
+
+
+

@@ -38,7 +38,7 @@ Goals:
       - involves generating a trait table
       - 
       
-```{r message=FALSE}
+```{r message=FALSE, echo =FALSE}
 library(vegan)
 library(tidyverse)
 #install.packages("BiocManager")
@@ -149,7 +149,7 @@ erlandson_OTU_add_enviro <- label_erlandson %>%
   summarize(.) %>% 
   left_join(., erlandson_OTU_combined) %>% 
   ungroup() %>% 
-  mutate(site = rep("erlandson", nrow(erlandson_OTU_combined))) %>% 
+  mutate(site = rep("cedar_creek", nrow(erlandson_OTU_combined))) %>% 
   relocate(site, .before = Tree_site)
 
 #unique(label_erlandson$mean) #[1] -1.3 -1.0 -0.9 -0.4 -0.3 -0.1  0.1
@@ -180,13 +180,7 @@ erlandson_rel_traits <- erlandson_traits %>%
          long = long/sumAbund,
          norhizo = norhizo/ sumAbund, 
          rhizo = rhizo/sumAbund) %>% 
-   group_by(Tree) %>% 
-  summarise(short = sum(short),
-           medium = sum(medium),
-           long = sum(long),
-           rhizo = sum(rhizo),
-           norhizo = sum(norhizo)) %>% 
-     column_to_rownames(., var = "Tree")
+  column_to_rownames(., var = "Tree")
 
 
 #ERLANDSON OTU
@@ -363,12 +357,12 @@ tejon_rel_traits <- tejon.tree.traits %>%
          medium = medium/sumAbund, 
          norhizo = norhizo/ sumAbund, 
          rhizo = rhizo/sumAbund) %>% 
-   group_by(tree) %>% 
-  summarise(short = sum(short),
-           medium = sum(medium),
-           long = sum(long),
-           rhizo = sum(rhizo),
-           norhizo = sum(norhizo)) %>% 
+  # group_by(tree) %>% 
+  #summarise(short = sum(short),
+   #        medium = sum(medium),
+    #       long = sum(long),
+     #      rhizo = sum(rhizo),
+      #     norhizo = sum(norhizo)) %>% 
      column_to_rownames(., var = "tree")
 
 #TEJON OTU
@@ -420,7 +414,7 @@ pygmy.crop <- pygmy.clean %>% group_by(SpeciesCode) %>%
 
 ```
 
-```{r}
+```{r message = F}
 #############Condensing to core by species
 #names(pygmy.clean)
 #pygmy_by_core <- pygmy.clean %>% 
@@ -468,7 +462,7 @@ pygmy.tree<-aggregate(pygmy.clean$No.Tips,
 
 #colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
 
-head(pygmy.tree)
+#head(pygmy.tree)
 
 pygmy.tree<-cbind(pygmy.tree,c(rep(1,dim(pygmy.tree)[1])))
 colnames(pygmy.tree)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips","Spp")
@@ -578,7 +572,7 @@ mendo_trait_table_foraging <- pygmy.core %>%
             short = shortdistance+contact, 
             medium = mediumdistancefringe+mediumdistancesmooth+mediumdistancemat,
             long = longdistance)
-  
+
 #not 100% sure what row_number does to help pivot.wider--but it works. Thanks stack overflow!
 
 mendo_trait_table_rhizo <- pygmy.core %>% 
@@ -851,16 +845,31 @@ mendo_sam <- pygmy.clean %>%
   column_to_rownames(., var = "Tree")
   ##Taxa table
 pygmy.clean$SpeciesCode <- as.character(pygmy.clean$SpeciesCode)
-mendo_tax <- pygmy.clean %>% select(SpeciesCode, BlastID) %>% 
-  separate(BlastID, into = c("Genus", "Species"), sep = "\\s")%>%
-  distinct(., SpeciesCode) %>% 
-  column_to_rownames(., var = "SpeciesCode")
-
+#mendo_tax <- pygmy.clean %>% select(SpeciesCode, BlastID) %>% 
+  #separate(BlastID, into = c("Genus", "Species"), sep = "\\s")
+#for(i in 1:nrow(mendo_tax)){
+#  if(mendo_tax$Genus[i] == "Uncultured"){
+ #   mendo_tax$Genus[i] = mendo_tax$Species[i]
+  #  mendo_tax$Species[i] = "sp."}}
+  # %>% distinct(., SpeciesCode) #%>% 
+#mendo_tax <- mendo_tax %>%  column_to_rownames(., var = "SpeciesCode")
+#saveRDS(mendo_tax, "mendo_tax.rds")
+mendo_tax <- readRDS("mendo_tax.rds") %>%  transmute(Phylum = Phylum,
+         Order = Order,
+         Class = Class,
+         Family = Family,
+         Genus = Genus,
+         Species = ID)
 #Combo
   ##OTU table
 com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F)
   ##"Taxa" table
-com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax)
+com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax) %>% mutate(Kingdom = rep("Fungi"))
+    ### Remove weird ellipses rownames : e.g. "25...144"
+#1- figure out what the correct number is for species code (why do only some print with weird ellipses--potentially duplicates?) --LOOKS LIKE it is the first section that is valid. so remove everything starting with"."
+#2- use gsub to remove either before or after &including "..."
+#https://stackoverflow.com/questions/39897155/replace-and-remove-part-of-string-in-rownames 
+#gsub("^[^-]+-|_[^_]+$", "", rownames(df))
 com_tax <- tax_table(com_tax)
   ##Sample table
 com_sam <- bind_rows(tej_sam, mendo_sam, erl_sam)
@@ -896,7 +905,7 @@ com_trait_ps <- phyloseq(com_sam, com_trait, com_trait_tax)
 
 #Taxonomy distribution
 com_ps_ord <- ordinate(com_ps, method = "NMDS", distance = "bray")
-p_com = plot_ordination(com_ps, com_ps_ord)
+p_com = plot_ordination(com_ps, com_ps_ord, type="species")
 print(p_com)
 
 p2_com = plot_ordination(com_ps, com_ps_ord, type="samples", color="enviro") 
@@ -910,11 +919,11 @@ com_trait_ps_ord <- ordinate(com_trait_ps, method = "NMDS", distance = "bray")
 p_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord)
 print(p_com_tr)
 
-p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="enviro") 
+p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="enviro", shape = "enviro") 
 print(p2_com_tr)
 #TO PLOT BY TRAIT
 #going to have to go back and take out line of code that sums tips abundances
-#will have to make new unique rownames for samples, retaing (or creating) site column as well as enviro and unique trait.
+#will have to make new unique rownames for samples, retaining (or creating) site column as well as enviro and unique trait.
 p3_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="enviro") 
 
 print(p3_com)
