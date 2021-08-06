@@ -435,16 +435,17 @@ pygmy.core<-aggregate(pygmy.clean$No.Tips,
                            pygmy.clean$Pygmy,
                            pygmy.clean$Trait.ForagingType,
                            pygmy.clean$Trait.Hydrophobicity,
-                           pygmy.clean$Trait.Rhizomorphs)
+                           pygmy.clean$Trait.Rhizomorphs,
+                           pygmy.clean$Trait.HostTree)
                       ,sum)
 
-colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
+colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Trait.HostTree","Tips")
 # ^ the above works better than what I can do
 #head(pygmy.core)
 
 pygmy.core<-cbind(pygmy.core,c(rep(1,dim(pygmy.core)[1])))
 
-colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips","Spp")
+colnames(pygmy.core)<-c("Sample.ID","SpeciesCode","Tree","Core","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Trait.HostTree","Tips","Spp")
 
 
 #############Condensing to tree by species
@@ -457,15 +458,16 @@ pygmy.tree<-aggregate(pygmy.clean$No.Tips,
                     pygmy.clean$Pygmy,
                     pygmy.clean$Trait.ForagingType,
                     pygmy.clean$Trait.Hydrophobicity,
-                    pygmy.clean$Trait.Rhizomorphs)
+                    pygmy.clean$Trait.Rhizomorphs,
+                    pygmy.clean$Trait.HostTree)
                   ,sum)
 
-#colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips")
+#colnames(pygmy.core)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs",Tips")
 
 #head(pygmy.tree)
 
 pygmy.tree<-cbind(pygmy.tree,c(rep(1,dim(pygmy.tree)[1])))
-colnames(pygmy.tree)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Tips","Spp")
+colnames(pygmy.tree)<-c("SpeciesCode","Tree","Terrace","Pygmy","Trait.ForagingType","Trait.Hydrophobicity","Trait.Rhizomorphs","Trait.HostTree","Tips","Spp")
 tail(pygmy.tree)
 ```
 # Holly's Functions
@@ -833,8 +835,10 @@ tej_tax <- tejon.ecto %>% select(OUT_MatchwMendo, kingdom,phylum,order,class, fa
          Genus = genus,
          Species = species) %>% 
   column_to_rownames(., var = "OUT_MatchwMendo")
+
 #MENDO
   ##Sample table
+#Tree_sp_mendo <- pygmy.clean %>% select(Tree, Trait.HostTree) %>%  distinct()
 pygmy.clean$Tree <- as.character(pygmy.clean$Tree)
 mendo_sam <- pygmy.clean %>% 
   select(Pygmy,Tree) %>% 
@@ -864,40 +868,56 @@ mendo_tax <- readRDS("mendo_tax.rds") %>%  transmute(Phylum = Phylum,
   ##OTU table
 com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F)
   ##"Taxa" table
-com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax) %>% mutate(Kingdom = rep("Fungi"))
+com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax) %>% mutate(Kingdom = rep("Fungi")) %>% rownames_to_column(., var="OTU")
     ### Remove weird ellipses rownames : e.g. "25...144"
 #1- figure out what the correct number is for species code (why do only some print with weird ellipses--potentially duplicates?) --LOOKS LIKE it is the first section that is valid. so remove everything starting with"."
 #2- use gsub to remove either before or after &including "..."
 #https://stackoverflow.com/questions/39897155/replace-and-remove-part-of-string-in-rownames 
 #gsub("^[^-]+-|_[^_]+$", "", rownames(df))
+com_tax$OTU <- sub("[...].*", "", com_tax$OTU)
+com_tax <- com_tax %>% distinct(., OTU, .keep_all = T) %>% column_to_rownames(., var="OTU")
+com_tax <- as.matrix(com_tax)
 com_tax <- tax_table(com_tax)
-  ##Sample table
-com_sam <- bind_rows(tej_sam, mendo_sam, erl_sam)
-com_sam <- sample_data(com_sam)
 
-com_ps <- phyloseq(com_otu,com_sam)
+  ##Sample table
+com_sam_df <- bind_rows(mendo_sam, tej_sam,  erl_sam)
+com_sam <- sample_data(com_sam_df)
+
+com_ps <- phyloseq(com_otu,com_tax,com_sam)
 ```
 #Phyloseq objects for trait NMDS
 ```{r}
 com_trait <- otu_table(combo_trait_matrix, taxa_are_rows = F)
-Trait_tree_names <- c(rownames(combo_trait_matrix))
-com_trait_tax <- as_tibble(combo_trait_matrix) #%>% mutate(trait = "")
+com_trait_tax <- com_sam_df %>% rownames_to_column(., var = "Tree")
 
-for(i in 1:nrow(com_trait_tax)) {
-  if(com_trait_tax$short[i] != 0){
-    com_trait_tax$short[i] = "short"}
-  if(com_trait_tax$medium[i] != 0){
-    com_trait_tax$medium[i] = "medium"}
-  if(com_trait_tax$long[i] != 0){
-    com_trait_tax$long[i] = "long"}
-  if(com_trait_tax$rhizo[i] != 0){
-    com_trait_tax$rhizo[i] = "rhizo"}
-  if(com_trait_tax$norhizo[i] != 0){
-    com_trait_tax$norhizo[i] = "norhizo"
-  }
-}
-com_tait_tax <-tax_table(com_trait_tax)
-com_trait_ps <- phyloseq(com_sam, com_trait, com_trait_tax)
+com_trait_temp <- as.data.frame(combo_trait_matrix ) 
+com_trait_temp <- com_trait_temp %>% rownames_to_column(., var = "Tree")
+com_trait_sam <- right_join(com_trait_tax, com_trait_temp) %>% column_to_rownames(., var = "Tree")
+com_trait_sam <- sample_data(com_trait_sam)
+
+#Trait_tree_names <- c(rownames(combo_trait_matrix))
+#com_trait_tax <- as_tibble(combo_trait_matrix) #%>% mutate(trait = "")
+
+#for(i in 1:nrow(com_trait_tax)) {
+ # if(com_trait_tax$short[i] != 0){
+  #  com_trait_tax$short[i] = "short"}
+  #if(com_trait_tax$medium[i] != 0){
+   # com_trait_tax$medium[i] = "medium"}
+  #if(com_trait_tax$long[i] != 0){
+  #  com_trait_tax$long[i] = "long"}
+  #if(com_trait_tax$rhizo[i] != 0){
+  #  com_trait_tax$rhizo[i] = "rhizo"}
+  #if(com_trait_tax$norhizo[i] != 0){
+  #  com_trait_tax$norhizo[i] = "norhizo"}
+#}
+#com_tait_tax <-tax_table(com_trait_tax)
+dat <- c("short", "medium", "long", "norhizo", "rhizo")
+rnames <- c("short", "medium", "long", "norhizo", "rhizo")
+ cnames <- "Species"
+
+com_trait_tax <- matrix(dat, nrow =5, ncol =1, dimnames=list(rnames,cnames))
+com_trait_tax <- tax_table(com_trait_tax)
+com_trait_ps <- phyloseq(com_trait_sam, com_trait, com_trait_tax)
 ```
 
 #Phyloseq NMDS
@@ -905,60 +925,68 @@ com_trait_ps <- phyloseq(com_sam, com_trait, com_trait_tax)
 
 #Taxonomy distribution
 com_ps_ord <- ordinate(com_ps, method = "NMDS", distance = "bray")
-p_com = plot_ordination(com_ps, com_ps_ord, type="species")
+p_com = plot_ordination(com_ps, com_ps_ord, type="species", color = "Order", shape = "site")
 print(p_com)
+```
 
+```{r}
 p2_com = plot_ordination(com_ps, com_ps_ord, type="samples", color="enviro") 
 print(p2_com)
 
 p3_com = plot_ordination(com_ps, com_ps_ord, type="samples", color="site") 
 
 print(p3_com)
-#Trait distribution
+
+```
+Trait distribution
+```{r}
 com_trait_ps_ord <- ordinate(com_trait_ps, method = "NMDS", distance = "bray")
 p_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord)
 print(p_com_tr)
 
-p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="enviro", shape = "enviro") 
+p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="short", shape = "enviro") 
 print(p2_com_tr)
+#p2_com_tr + geom_polygon(aes(fill=site)) + geom_point(size=5) + ggtitle("site")
 #TO PLOT BY TRAIT
 #going to have to go back and take out line of code that sums tips abundances
 #will have to make new unique rownames for samples, retaining (or creating) site column as well as enviro and unique trait.
-p3_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="enviro") 
+p3_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="Species") 
 
-print(p3_com)
+print(p3_com_tr)
 
+```
+```{r}
+p4_trait_ord <- plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa") 
 ```
 
 
 #NMDS
 ```{r}
 #https://rpubs.com/CPEL/NMDS
-t_combo_OTU_matrix <- t(combo_OTU_matrix) 
-
-df_t_combo <- as.data.frame(t_combo_OTU_matrix)
-df_t_combo <- df_t_combo %>% mutate(sum = select(., 1:ncol(.)) %>% rowSums(na.rm = TRUE)) %>% filter(tibble_t_combo$sum == 0) 
+#t_combo_OTU_matrix <- t(combo_OTU_matrix) 
 
 
-spp <- colnames(combo_OTU_matrix)
-OTU_NMDS <- metaMDS(as.matrix(df_t_combo), k = 2, distance = "bray")
+#df_t_combo <- as.data.frame(t_combo_OTU_matrix)
+#df_t_combo <- df_t_combo %>% mutate(sum = select(., 1:ncol(.)) %>% rowSums(na.rm = TRUE)) %>% filter(tibble_t_combo$sum == 0) 
+
+
+#spp <- colnames(combo_OTU_matrix)
+#OTU_NMDS <- metaMDS(as.matrix(df_t_combo), k = 2, distance = "bray")
 
 
 
-trait_NMDS <- metaMDS(as.matrix(combo_trait_matrix), k = 2)
-par(mfrow=c(1,2))
-plot(OTU_NMDS, type = "t", display = c("site"))
-stressplot(OTU_NMDS)
-plot(trait_NMDS, type = "t", display = c("species"))
+#trait_NMDS <- metaMDS(as.matrix(combo_trait_matrix), k = 2)
+#par(mfrow=c(1,2))
+#plot(OTU_NMDS, type = "t", display = c("site"))
+#stressplot(OTU_NMDS)
+#plot(trait_NMDS, type = "t", display = c("species"))
 
-names(trait_NMDS)
+#names(trait_NMDS)
 #SHould I be inputting dissimilarity data instead???
 #I can instead push this data thru the phyloseq package (short = species for trait table)
 # Try phyloseq
 
 #http://joey711.github.io/phyloseq-demo/phyloseq-demo.html # PHYLOSEQ DEMO
-
-plot(pygmy.clean$OM.Pct)
 
 ```
 
@@ -985,7 +1013,7 @@ plot(traitNMDS$points[,1], traitNMDS$points[,2],pch=c(21,22)[unclass(siteIDs)],m
 
 ```
 ### Appendix##
-```{r Surplus Code}
+```{r Surplus Code, eval=FALSE, include=FALSE}
 
 ## Summary Table w/ Two Treatments ###
 
