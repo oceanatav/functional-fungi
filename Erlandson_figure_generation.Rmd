@@ -954,9 +954,11 @@ p3_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa", color="
 
 print(p3_com_tr)
 
+
+
 ```
 ```{r}
-p4_trait_ord <- plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa") 
+p4_trait_ord <- plot_ordination(com_trait_ps, com_trait_ps_ord, type="taxa")  #Look into a shiny that lets u hover over points to see what is there! would be great to know what traits cluster together!!!
 ```
 
 
