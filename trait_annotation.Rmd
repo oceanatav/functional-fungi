@@ -1,0 +1,69 @@
+---
+title: "Trait Annotation"
+author: "Oceana Tavasieff"
+date: "8/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+```{r read in FungalTraits doc}
+
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
+
+#colnames(short_traits)
+```
+
+```{r Install Fun^Fun db which may have more consistent annotations}
+# Version: https://zenodo.org/record/1216257
+
+# Via: https://github.com/traitecoevo/fungaltraits
+
+#install.packages("devtools")
+#devtools::install_github("ropenscilabs/datastorr")
+#devtools::install_github("traitecoevo/fungaltraits")
+library(fungaltraits)
+```
+
+```{r Access Fun^Fun db, include=FALSE}
+#fun_fun_db <-fungal_traits()
+long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
+
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+exp_type <- merge(exp_type_1, exp_type_2)
+#fun_fun_traits <- colnames(fun_fun_db)
+ 
+```
+#Pull in your dataset
+
+```{r}
+richard_raw <- read.csv("Richard et al OTU table.csv")
+richard <-  richard_raw %>% select(-GenBank.accession.number, -Closest.GenBank.species, -BLAST.expected.valueâ..) %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
+
+richard_exp_type <- left_join(richard, exp_type)
+
+
+```
+
+```{r}
+annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+exp_type <- merge(exp_type_1, exp_type_2)
+# %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
+
+
+# Check exploration type added correctly
+#unique(exp_type$em_expl) # looks good
+
+erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)#
+
+trait_table_erlandson
+```

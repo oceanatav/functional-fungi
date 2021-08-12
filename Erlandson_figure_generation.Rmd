@@ -78,16 +78,17 @@ mendo_names <- mendo_metadata %>% select(SpeciesCode, BlastID) #%>% mutate(Speci
 tejon_names <- tejon_metadata %>% select(OUT_MatchwMendo,species) #%>% mutate (Species = OUT_MatchwMendo)
 #Issue w tejon species format. Some NA's (replace w genus sp.), lots of genus sp. with additional codes. wouldnt it make more sense to leave them w special codes? - Yes
 
-mendo_tejon_join <- bind_rows(mendo_names, tejon_names) %>% unite(Species, OUT_MatchwMendo, SpeciesCode) %>% unite(ID, species, BlastID)
+mendo_tejon_join <- bind_rows(mendo_names, tejon_names) %>% unite(Species, OUT_MatchwMendo, SpeciesCode) %>% unite(ID, species, BlastID) %>% rename(OTU = Species)
 mendo_tejon_join <- as.data.frame(mendo_tejon_join)
-mendo_tejon_join$Species <- gsub("NA_", "", as.character(mendo_tejon_join$Species))
-mendo_tejon_join$Species <- gsub("_NA", "", as.character(mendo_tejon_join$Species))
+mendo_tejon_join$OTU <- gsub("NA_", "", as.character(mendo_tejon_join$OTU))
+mendo_tejon_join$OTU <- gsub("_NA", "", as.character(mendo_tejon_join$OTU))
 mendo_tejon_join$ID <- gsub("NA_", "", as.character(mendo_tejon_join$ID))
 mendo_tejon_join$ID <- gsub("_NA", "", as.character(mendo_tejon_join$ID))
 mendo_tejon_join$ID <- gsub("_", " ", as.character(mendo_tejon_join$ID))
-mendo_tejon_join <- mendo_tejon_join[mendo_tejon_join$Species != "NA",]
+mendo_tejon_join <- mendo_tejon_join[mendo_tejon_join$OTU != "NA",]
 
 ref_ID <- mendo_tejon_join %>% distinct()
+saveRDS(ref_ID, "master_ID_df.rds")
 ```
 
 #Compare names of ERLANDSON dataset to existing 
@@ -96,17 +97,31 @@ ref_ID <- mendo_tejon_join %>% distinct()
 
 
 erlandson_names <- erlandson_metadata %>% select (Tree_site, Ecto_ID, Ecto_spp, Tip) %>% mutate(ref_name = numeric(nrow(.)))
+saveRDS(erlandson_names, "erl_test.rds")
 
-
+match_names <- function(OTU, ID, ref_ID){
+  input_df = data.frame(OTU,ID)
+  input_df = unique(input_df)
+  input_df$ref_name = rep(0)
+  for(i in 1:nrow(input_df)) {
+    for(j in 1:nrow(ref_ID)) {
+      if(input_df$ID[i] == ref_ID$ID[j]) {
+        input_df$ref_name[i] = ref_ID$OTU[j]
+        print(paste("Replace ID:", input_df$ID[i], "with", ref_ID$OTU[j]))}}}
+  ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.)
+ # print(unique(input_df$ref_name))
+  ref_ID <<- ref_ID
+}
+match_names(erlandson_names$Ecto_spp, erlandson_names$Ecto_ID, ref_ID)
+saveRDS(ref_ID, "master_ID_df.rds")
+dim(ref_ID)
 for(i in 1:nrow(erlandson_names)) {
   for(j in 1:nrow(ref_ID)) {
     if(erlandson_names$Ecto_ID[i] == ref_ID$ID[j]) {
-      erlandson_names$ref_name[i] = ref_ID$Species[j] 
+      erlandson_names$ref_name[i] = ref_ID$OTU[j] 
       if(erlandson_names$ref_name[i] == 0) {
         erlandson_names$ref_name[i] = erlandson_names$Ecto_spp[i]
-      }
-  
-      }
+       }}
  
    }
 }
