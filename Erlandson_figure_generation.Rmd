@@ -942,6 +942,8 @@ com_trait_ps <- phyloseq(com_trait_sam, com_trait, com_trait_tax)
 com_ps_ord <- ordinate(com_ps, method = "NMDS", distance = "bray")
 p_com = plot_ordination(com_ps, com_ps_ord, type="species", color = "Order", shape = "site")
 print(p_com)
+
+
 ```
 
 ```{r}
@@ -959,7 +961,7 @@ com_trait_ps_ord <- ordinate(com_trait_ps, method = "NMDS", distance = "bray")
 p_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord)
 print(p_com_tr)
 
-p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="short", shape = "enviro") 
+p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="site", shape = "enviro") 
 print(p2_com_tr)
 #p2_com_tr + geom_polygon(aes(fill=site)) + geom_point(size=5) + ggtitle("site")
 #TO PLOT BY TRAIT

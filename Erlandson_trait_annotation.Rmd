@@ -23,25 +23,25 @@ library(tidyverse)
 ```{r read in Erlandson dataset}
 salix_raw <- read.csv("ccectos_wtaxonomy.csv")
 colnames(salix_raw)
-
+salix <- salix_raw %>% select(-X)
 # Only consistent to Phylum level, some species names (will probably have to manually annotate)
 
 #Remove Phylum and Order columns
 
-salix <- salix_raw[-c(12,13)]
+#salix <- salix_raw[-c(12,13)]
 ```
 ```{r Erlandson Excel sheet and prepare metadata}
-erlandson_annotated <- read_excel("salix_rhizomorph.xlsx") %>% if_else(Species != NA, Species, "sp.") %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+erlandson_annotated <- read.csv("salix_rhizomorph.csv") %>%  mutate(Species = ifelse(Species %in% "", "sp.", Species)) %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
 
-erlandson_metadata <- left_join(salix_raw, erlandson_annotated) %>% mutate (Tree_site = Plspp, Plspp = NULL)
-write.csv(erlandson_metadata, "erlandson_generated_metadata.csv")
+#erlandson_metadata <- left_join(salix, erlandson_annotated) %>% mutate (Tree_site = Plspp, Plspp = NULL)
+#write.csv(erlandson_metadata, "erlandson_generated_metadata.csv")
   # filter out sp. from Species column
 ```
 
 
 ```{r read in FungalTraits doc}
 
-short_traits <- read_xlsx("~/Fungi Textbooks/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
 
 #colnames(short_traits)
 ```
@@ -58,9 +58,9 @@ library(fungaltraits)
 ```
 
 ```{r Access Fun^Fun db, include=FALSE}
-fun_fun_db <-fungal_traits()
+#fun_fun_db <-fungal_traits()
 long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
-fun_fun_traits <- colnames(fun_fun_db)
+#fun_fun_traits <- colnames(fun_fun_db)
 
 # [69] melanin_count, [101] trophic_mode_fg, [2] species, [6] acid_phosphatase, [45] em_expl, [56] growth_form_fg, [59] guild_fg, [49] Genus, [60] heatShockProtein_count, [68] melanin_content, [93-97] show levels of C, N, and P and C:N N:P ratios in tissue [13] 
 # rhizomorph? 
@@ -74,71 +74,121 @@ fun_fun_traits <- colnames(fun_fun_db)
 
 ```{r Annotate by Fungal Trait}
 #Rejoin our annotated dataframe with the original Erlandson dataframe, only keeping those fungi for which we have a species-level identification 
+
 annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
 # Add an exploration type column from the fungaltraits database 
 exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
 exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
-exp_type <- merge(exp_type_1, exp_type_2)
+exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = " ", na.rm=T)
 # %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
 
 
 # Check exploration type added correctly
 #unique(exp_type$em_expl) # looks good
 
-erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)# NO exploration type data available for species level :/ must do genus-level!
+
+
+erlandson_expl <- left_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp) %>% distinct(.) %>% mutate(
+  distance =  case_when(grepl("long", Foraging_distance) ~ "long",
+                        grepl("long", EXP.TYPE) ~ "long",
+                        grepl("L", EXP.TYPE) ~ "long",
+                        grepl("medium", Foraging_distance)~"medium",
+                        grepl("medium", EXP.TYPE) ~ "medium",
+                        grepl("M", EXP.TYPE) ~ "medium",
+                        grepl("short", Foraging_distance) ~ "short",
+                        grepl("short", EXP.TYPE) ~ "short",
+                        grepl("S", EXP.TYPE) ~ "short",
+                        grepl("contact", Foraging_distance)~"short",
+                        grepl("contact", EXP.TYPE) ~ "short",
+                        grepl("C", EXP.TYPE)~"short")) %>% distinct(Tip, .keep_all = T)
+
+#Generally will prefer DEEMY over other annotations
+# NO exploration type data available for species level :/ must do genus-level!
+
 
 
 ```
 
+
+#Produce trait table to be turned into matrix
+
+```{r}
+trait_matrix <- erlandson_expl %>% select(Plspp, distance, Rhizomorph) %>% mutate(No.Tips = rep(1)) %>% group_by(Plspp,distance,Rhizomorph) %>%  summarize(count=n()) %>% mutate(short = rep(NA), medium = rep(NA), long=rep(NA), rhizo = rep(NA), norhizo = rep(NA), unknown = rep(NA))%>% ungroup() 
+trait_matrix$distance <- replace_na(trait_matrix$distance, "unknown") 
+
+#To make for loop work
+
+
+for(i in 1:nrow(trait_matrix)){
+  if(trait_matrix$distance[i] == "short") {
+    trait_matrix$short[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$distance[i] == "medium") {
+    trait_matrix$medium[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$distance[i] == "long") {
+    trait_matrix$long[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$distance[i] == "unknown") {
+    trait_matrix$unknown[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$Rhizomorph[i] == "Y") {
+    trait_matrix$rhizo[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$Rhizomorph[i] == "N") {
+    trait_matrix$norhizo[i] = trait_matrix$count[i]
+  }
+  if(trait_matrix$Rhizomorph[i] == "") {
+    trait_matrix$unknown[i] = trait_matrix$count[i]
+  }
+}
+
+erl_traits <- trait_matrix %>% select(Plspp, short, medium, long, rhizo, norhizo, unknown)
+#need to repeat step to get distinct trees 
+```
+
+```{r}
+#annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
+# Add an exploration type column from the fungaltraits database 
+#exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+#exp_type_2 <- short_traits %>% select(Genus, #Ectomycorrhiza_exploration_type_template)
+#exp_type <- merge(exp_type_1, exp_type_2)
+# %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
+
+
+# Check exploration type added correctly
+#unique(exp_type$em_expl) # looks good
+
+#erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)#
+
+#trait_table_erlandson
+```
+
+## Appendix
 ## Generate Trait Table
 ```{r}
 
-trait_unique_expl <- unique(erlandson_expl)
+#trait_unique_expl <- unique(erlandson_expl)
 
 #Subset foraging distance tabl
-trait_table_forage <- trait_unique_expl %>% mutate(type = Ectomycorrhiza_exploration_type_template,
-                                         type = if_else(type=="short-distance_delicate", "short", type),
-                                         type = if_else(type=="short-distance_coarse", "short", type),
-                                         type = if_else(type=="medium-distance_fringe", "medium", type),
-                                         type = if_else(type=="medium-distance_smooth", "medium", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "exploration_type") %>% drop_na(type)
+#trait_table_forage <- trait_unique_expl %>% mutate(type = Ectomycorrhiza_exploration_type_template,type = if_else(type=="short-distance_delicate", "short", type),type = if_else(type=="short-distance_coarse", "short", type),type = if_else(type=="medium-distance_fringe", "medium", type),type = if_else(type=="medium-distance_smooth", "medium", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "exploration_type") %>% drop_na(type)
 
 #Subset rhizomorph table
-trait_table_rhizo <- annotated_merge %>% drop_na(Rhizomorph) %>% mutate(type = Rhizomorph,
-                                                                        type = if_else(type=="Y", "r_true", type),
-                                                                        type = if_else(type =="N", "r_false", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "rhizomorphs")
+#trait_table_rhizo <- annotated_merge %>% drop_na(Rhizomorph) %>% mutate(type = Rhizomorph,type = if_else(type=="Y", "r_true", type),type = if_else(type =="N", "r_false", type)) %>% select(Tip, Ecto_spp, type) %>% mutate(trait = "rhizomorphs")
 
 
 #Join trait tables
 
-trait_table_erlandson <- rbind(trait_table_forage, trait_table_rhizo)
+#trait_table_erlandson <- rbind(trait_table_forage, trait_table_rhizo)
 
-write.csv(trait_table_erlandson, file = "trait_table_erlandson.csv")
+#write.csv(trait_table_erlandson, file = "trait_table_erlandson.csv")
 #string detect tidyverse (str_subset....etc) to make pipeline
 
-erlandson_matrix <- right_join(trait_table_erlandson, trait_unique_expl)
+#erlandson_matrix <- right_join(trait_table_erlandson, trait_unique_expl)
 
-write.csv(erlandson_matrix, file = "erlandson_matrix_input.csv")
+#write.csv(erlandson_matrix, file = "erlandson_matrix_input.csv")
 ```
 
-#Produce trait table to be turned into matrix
-```{r}
-annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
-# Add an exploration type column from the fungaltraits database 
-exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
-exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
-exp_type <- merge(exp_type_1, exp_type_2)
-# %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = F)
-
-
-# Check exploration type added correctly
-#unique(exp_type$em_expl) # looks good
-
-erlandson_expl <- right_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp)#
-
-trait_table_erlandson
-```
-
-## Appendix
 ```{r Explore FunFun trait codes, eval=FALSE, include=FALSE}
 # set above to TRUE to see results
 unique(fun_fun_db$trophic_mode_fg) #Provides a new method to sort by symbiotrophs :)

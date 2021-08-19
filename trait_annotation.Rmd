@@ -4,7 +4,10 @@ author: "Oceana Tavasieff"
 date: "8/12/2021"
 output: html_document
 ---
-
+The Goal of this Document will be to input a dataset and generated both a trait and an OTU matrix.
+  - The ds (dataset) must initially be annotated for rhizomorph prescence at DEEMY to the species level.
+  -The trait/OTU matrices must have tree names as rownames
+  -the trait matrix has traits as column names
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
@@ -13,8 +16,9 @@ library(readxl)
 
 ```{r read in FungalTraits doc}
 
-short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% mutate(Genus = GENUS) 
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% rename(Genus = GENUS) 
 
+ecm_short <- short_traits %>% drop_na(Ectomycorrhiza_exploration_type_template) %>% arrange(Genus)
 #colnames(short_traits)
 ```
 
@@ -36,17 +40,97 @@ long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species"
 # Add an exploration type column from the fungaltraits database 
 exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
 exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
-exp_type <- merge(exp_type_1, exp_type_2)
-#fun_fun_traits <- colnames(fun_fun_db)
+
+
+exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = " ", na.rm=T) 
+
+fun_fun_traits <- colnames(fungal_traits())
  
 ```
 #Pull in your dataset
 
 ```{r}
-richard_raw <- read.csv("Richard et al OTU table.csv")
-richard <-  richard_raw %>% select(-GenBank.accession.number, -Closest.GenBank.species, -BLAST.expected.valueâ..) %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
+richard_raw <- Richard_et_al_OTU_table <- read_delim("Richard et al OTU table.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+richard <-  richard_raw %>% select(-"GenBank accession number", -"Closest GenBank species", -"BLAST expected value‡") %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
 
-richard_exp_type <- left_join(richard, exp_type)
+richard_annotated <- left_join(richard, exp_type) %>% rename(DEEM_RHIZO = "Rhizomorph-DEEMY") %>% 
+  mutate(
+  distance =  case_when(grepl("long", "Foraging_distance-DEEMY") ~ "long",
+                        grepl("long", EXP.TYPE) ~ "long",
+                        grepl("L", EXP.TYPE) ~ "long",
+                        grepl("medium", "Foraging_distance-DEEMY")~"medium",
+                        grepl("medium", EXP.TYPE) ~ "medium",
+                        grepl("M", EXP.TYPE) ~ "medium",
+                        grepl("short", "Foraging_distance-DEEMY") ~ "short",
+                        grepl("short", EXP.TYPE) ~ "short",
+                        grepl("S", EXP.TYPE) ~ "short",
+                        grepl("contact", EXP.TYPE) ~ "short",
+                        grepl("C", EXP.TYPE)~"short"),
+    short = case_when(grepl("short", distance)~ 1),
+  medium = case_when(grepl("medium", distance)~ 1),
+  long = case_when(grepl("long", distance)~ 1),
+  rhizo = case_when(grepl("y", Rhizomorph)~ 1),
+  norhizo = case_when(grepl("n", Rhizomorph)~ 1 )%>% 
+  select(-Etc, -"Foraging_distance-DEEMY", -EXP.TYPE, -DEEM_RHIZO, distance) %>% 
+  unite(ID, Genus, Species, sep="_")
+#WE will be producing a matrix that has NA's instead of zeroes. But if we would like to produce a curated matrix with zeroes, this is part of the code that could work:
+ #short = if_else(str_detect(distance, "short"), 1, 0),
+  #medium = if_else(str_detect(distance, "medium"), 1, 0),
+  #long = if_else(str_detect(distance, "long"), 1, 0),
+  #rhizo = if_else(str_detect(DEEM_RHIZO, "y"), 1, 0),
+  #norhizo = if_else(str_detect(DEEM_RHIZO, "n"), 1, 0),
+  #short =~replace(., is.na(.), 0),
+  #medium = ~replace(., is.na(.), 0))# %>% 
+  #mutate_all(~replace(., is.na(.), 0)
+
+#next is to sum by spp.
+
+
+richard_trait <- richard_annotated %>% select(ID, "Rhizomorph-DEEMY", EA07) %>% group_by(ID) %>% summarize(., EA07 = sum(EA07),
+                                                                                                           )
+  
+richard_trait <- aggregate(richard_annotated$,
+                           list(richard_annotated$))
+pygmy.core<-aggregate(pygmy.clean$No.Tips,
+                      list(pygmy.clean$Sample.ID,
+                           pygmy.clean$SpeciesCode,
+                           pygmy.clean$Tree,
+                           pygmy.clean$Core,
+                           pygmy.clean$Terrace,
+                           pygmy.clean$Pygmy,
+                           pygmy.clean$Trait.ForagingType,
+                           pygmy.clean$Trait.Hydrophobicity,
+                           pygmy.clean$Trait.Rhizomorphs,
+                           pygmy.clean$Trait.HostTree)
+                      ,sum)
+
+## Make Mendo TRAIT matrix
+mendo_trait_table_foraging <- pygmy.core %>% 
+  select(Tree, Trait.ForagingType, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.ForagingType != "") %>% 
+  mutate(row = row_number()) %>%
+  pivot_wider(., names_from = Trait.ForagingType, values_from = Tips, values_fill = 0) %>% 
+  transmute(Tree = Tree,
+            short = shortdistance+contact, 
+            medium = mediumdistancefringe+mediumdistancesmooth+mediumdistancemat,
+            long = longdistance)
+
+#not 100% sure what row_number does to help pivot.wider--but it works. Thanks stack overflow!
+
+mendo_trait_table_rhizo <- pygmy.core %>% 
+  select(Tree, Trait.Rhizomorphs, Tips) %>% 
+  group_by(Tree) %>% 
+  arrange(Tree) %>% 
+  ungroup() %>% 
+  filter(., Trait.Rhizomorphs != "") %>% 
+    mutate(row = row_number()) %>%
+  pivot_wider(., names_from = Trait.Rhizomorphs, values_from = Tips, values_fill = 0) %>% 
+  transmute(Tree = Tree,
+            norhizo = n,
+            rhizo = y)# dropped m column, may have to revisit?
 
 
 ```
