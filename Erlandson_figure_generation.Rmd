@@ -3,6 +3,8 @@ title: "Erlandson Figure Generation"
 author: "Oceana"
 date: "2/5/2021"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -50,8 +52,10 @@ library(phyloseq)
 #Read in Erlandson Matrices
 
 ```{r}
-erlandson_OTU_raw <- read.csv(as.matrix("erlandson_OTU.csv")) %>% mutate(X=NULL)
-erlandson_traits_raw <- read.csv(as.matrix("trait_OTU.csv")) %>% mutate(X=NULL)
+erlandson_OTU_raw <- readRDS("erl_OTU.rds")
+erlandson_traits_raw <- readRDS("erl_trait_table.rds")
+#erlandson_traits_raw <- read.csv(as.matrix("trait_OTU.csv")) %>% mutate(X=NULL)
+#erlandson_OTU_raw <- read.csv(as.matrix("erlandson_OTU.csv")) %>% mutate(X=NULL)
 
 # t/d save as and reload as R obj in matrices generation.rmd so no need to remove X column
 ```
@@ -61,18 +65,22 @@ erlandson_traits_raw <- read.csv(as.matrix("trait_OTU.csv")) %>% mutate(X=NULL)
 # Run against curated assembly (mendo) & ecto_OTUS (tejon) in Trait analysis folder
 mendo_metadata <- read.csv("TraitAnalysisforOceana/Curated_Assembly_3July2012.csv")
 tejon_metadata <- read.csv("TraitAnalysisforOceana/ecto_OTUs.csv") 
-erlandson_metadata_raw <- read.csv("erlandson_generated_metadata.csv") 
-erlandson_metadata <- erlandson_metadata_raw 
-for(i in 1:nrow(erlandson_metadata)){
-  if(erlandson_metadata$Ecto_spp[i] == "Clavulinopsis_helvola"){
-    erlandson_metadata$Ecto_ID[i] = "Clavulinopsis helvola"
-  }
-  if(erlandson_metadata$Ecto_spp[i] == "Meliniomyces1"){
-    erlandson_metadata$Ecto_ID[i] = "Meliniomyces sp."
-  }
-}
-erlandson_metadata <- erlandson_metadata %>% drop_na(Ecto_ID)
-
+#erlandson_metadata_raw <- readRDS("erlandson_generated_metadata.rds") 
+#erlandson_metadata <- erlandson_metadata_raw 
+#for(i in 1:nrow(erlandson_metadata)){
+#  if(erlandson_metadata$Ecto_spp[i] == "Clavulinopsis_helvola"){
+#    erlandson_metadata$Ecto_ID[i] = "Clavulinopsis helvola"
+#  }
+#  if(erlandson_metadata$Ecto_spp[i] == "Meliniomyces1"){
+#    erlandson_metadata$Ecto_ID[i] = "Meliniomyces sp."
+#  }
+#}
+#erlandson_metadata[523, 12] = "Thelephora terrestris"
+#erlandson_metadata[585, 12] = "Thelephora terrestris"
+#erlandson_metadata[664, 12] = "Thelephora terrestris"
+#erlandson_metadata[671, 12] = "Tomentellopsis sp."
+#saveRDS(erlandson_metadata, "erlandson_generated_metadata.rds")
+erlandson_metadata <- readRDS("erlandson_generated_metadata.rds")
 mendo_names <- mendo_metadata %>% select(SpeciesCode, BlastID) #%>% mutate(Species = SpeciesCode)
 
 tejon_names <- tejon_metadata %>% select(OUT_MatchwMendo,species) #%>% mutate (Species = OUT_MatchwMendo)
@@ -97,8 +105,10 @@ saveRDS(ref_ID, "master_ID_df.rds")
 
 
 erlandson_names <- erlandson_metadata %>% select (Tree_site, Ecto_ID, Ecto_spp, Tip) %>% mutate(ref_name = numeric(nrow(.)))
-saveRDS(erlandson_names, "erl_test.rds")
+#saveRDS(erlandson_names, "erl_test.rds")
 
+
+ref_ID <- readRDS("master_ID_df.rds")
 match_names <- function(OTU, ID, ref_ID){
   input_df = data.frame(OTU,ID)
   input_df = unique(input_df)
@@ -108,7 +118,7 @@ match_names <- function(OTU, ID, ref_ID){
       if(input_df$ID[i] == ref_ID$ID[j]) {
         input_df$ref_name[i] = ref_ID$OTU[j]
         print(paste("Replace ID:", input_df$ID[i], "with", ref_ID$OTU[j]))}}}
-  ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.)
+  ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.) %>% select(-ref_name)
  # print(unique(input_df$ref_name))
   ref_ID <<- ref_ID
 }
@@ -127,13 +137,13 @@ for(i in 1:nrow(erlandson_names)) {
 }
 
 unique(erlandson_names$ref_name) # [1] "0"  "17" "3" #so the only matches were to Species Code/OTU "17" and "3"
+#No longer works bc ref_ID was updated.
 
 #DONT FORGET TO WRITE SOMETHING THAT ADDS THE OTU COL AND ID TO REF_ID
 
-erlandson_OTU <- erlandson_OTU_raw
-erlandson_OTU_combined <- erlandson_OTU %>% select(order(colnames(.))) %>% 
-  rename("17" = Cortinarius1,
-         "3" = Cenococcum_geophilum)
+#erlandson_OTU <- erlandson_OTU_raw
+erlandson_OTU_combined <- erlandson_OTU %>% select(order(colnames(.))) %>%rename("17" = Cortinarius1,
+         "3" = Cenococcum_geophilum) %>% rownames_to_column(var = "Tree_site")
 # ADD new spp names to ref_ID
 
 ####
@@ -150,7 +160,8 @@ erlandson_OTU_combined <- erlandson_OTU %>% select(order(colnames(.))) %>%
 ```
 
 ```{r Add dry/wet labels to erlandson matrices}
-label_erlandson <- erlandson_metadata %>% group_by(Plot, 
+label_erlandson <- erlandson_metadata %>% 
+ group_by(Plot, 
            mean, 
            Tree_site, 
            Ecto_spp) %>% 
@@ -162,12 +173,14 @@ label_erlandson <- erlandson_metadata %>% group_by(Plot,
 erlandson_OTU_add_enviro <- label_erlandson %>% 
   select(Tree_site, enviro) %>% group_by(Tree_site, enviro) %>% 
   summarize(.) %>% 
+   ungroup() %>%
   left_join(., erlandson_OTU_combined) %>% 
-  ungroup() %>% 
   mutate(site = rep("cedar_creek", nrow(erlandson_OTU_combined))) %>% 
   relocate(site, .before = Tree_site)
 
 #unique(label_erlandson$mean) #[1] -1.3 -1.0 -0.9 -0.4 -0.3 -0.1  0.1
+
+
 
 # ****DETERMINE the cutoff for dry/wet. 7 variables so it wont be even split, 0.1 i believe may be "flooded" as described in paper. Suggested cutoff: <-0.5 = DRY/ARID, <-0.5 = WET/MESIC. I think this is fair as there is a pretty big jump in values between -.4 and -.9 which suggests this is intended by study design. Then only plots 1 & 2 are "dry"
 ```
@@ -177,16 +190,11 @@ erlandson_OTU_add_enviro <- label_erlandson %>%
 ```{r}
 #ERLANDSON TRAITS
 
-erlandson_traits <- erlandson_traits_raw %>% 
-  transmute(Tree_site = Tree_site,
-            short= contact + short,
-            medium = medium,
-            long = rep(0),
-            rhizo= r_true,
-         norhizo = r_false)
+#erlandson_traits <- erlandson_traits_raw %>% rownames_to_column(var = "Tree_site") %>% transmute(Tree_site = Tree_site,short=  short, medium = medium,long = rep(0),rhizo= r_true,norhizo = r_false)
 
 
-erlandson_rel_traits <- erlandson_traits %>% 
+erlandson_rel_traits <- erlandson_traits_raw %>% 
+  rownames_to_column(var = "Tree_site") %>% 
   mutate(sumAbund = select(., short:norhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
   transmute(Tree = Tree_site,
@@ -194,15 +202,23 @@ erlandson_rel_traits <- erlandson_traits %>%
          medium = medium/sumAbund,
          long = long/sumAbund,
          norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund) %>% 
+         rhizo = rhizo/sumAbund) %>% replace(is.na(.), 0)%>% # unknown = unknown/sumAbund,
   column_to_rownames(., var = "Tree")
-
+erlandson_rel_traits
 
 #ERLANDSON OTU
 
-erlandson_rel_OTU <- erlandson_OTU_add_enviro %>% 
-  select(-site, -enviro) 
-erlandson_rel_OTU <- column_to_rownames(erlandson_rel_OTU, var = "Tree_site") 
+erlandson_rel_OTU <- erlandson_OTU_add_enviro %>%
+  mutate(sumAbund = select(., Cadophora_finlandica:Tuber4) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .after = enviro)
+
+for(i in 5:ncol(erlandson_rel_OTU)) {
+ erlandson_rel_OTU[,i] <- erlandson_rel_OTU[,i]/erlandson_rel_OTU$sumAbund
+  }
+erlandson_rel_OTU <- erlandson_rel_OTU %>%
+  select(-sumAbund,-site,-enviro ) %>% column_to_rownames(var="Tree_site")
+
 #ERlandson OTU is already relativized
 
 erlandson_tree_names <- unique(erlandson_OTU$Tree_site)
@@ -692,7 +708,7 @@ combo_OTU_matrix <- matrix(rep(0,length(tree_names)*length(OTU_list)),nrow=lengt
 
 colnames(combo_OTU_matrix) <- OTU_list
 rownames(combo_OTU_matrix) <- tree_names
-
+combo_OTU_matrix <- combo_OTU_matrix %>% replace(is.na(.), 0)
 
   ## Now to fill in the values
 
@@ -822,10 +838,12 @@ erl_tax <-erlandson_metadata %>%
          Ecto_spp = replace(Ecto_spp, Ecto_spp == "Cenococcum_geophilum", "3")) %>% 
   distinct(.) %>%
   column_to_rownames(., var = "Ecto_spp")
+    ##OTU table
+erl_otu <- otu_table(erlandson_OTU_matrix, taxa_are_rows = F) %>% replace(is.na(.), 0)
 
-#erl_ps <- phyloseq(erl_otu,erl_tax, erl_sam)
-#sample_names(erl_ps)
-#erl_ps_ord <- ordinate(erl_ps, method = "NMDS", distance = "bray")
+erl_ps <- phyloseq(erl_otu,erl_tax, erl_sam)
+sample_names(erl_ps)
+erl_ps_ord <- ordinate(erl_ps, method = "NMDS", distance = "bray")
 #p_erl = plot_ordination(erl_ps, erl_ps_ord)
 #print(p_erl)
 #sample_names(erl_sam)
@@ -881,7 +899,7 @@ mendo_tax <- readRDS("mendo_tax.rds") %>%  transmute(Phylum = Phylum,
          Species = ID)
 #Combo
   ##OTU table
-com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F)
+com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F) 
   ##"Taxa" table
 com_tax <- bind_rows(tej_tax, mendo_tax, erl_tax) %>% mutate(Kingdom = rep("Fungi")) %>% rownames_to_column(., var="OTU")
     ### Remove weird ellipses rownames : e.g. "25...144"
@@ -895,7 +913,7 @@ com_tax <- as.matrix(com_tax)
 com_tax <- tax_table(com_tax)
 
   ##Sample table
-com_sam_df <- bind_rows(mendo_sam, tej_sam,  erl_sam)
+com_sam_df <- bind_rows(mendo_sam, tej_sam,  erl_sam) %>% replace(is.na(.), 0)
 com_sam <- sample_data(com_sam_df)
 
 com_ps <- phyloseq(com_otu,com_tax,com_sam)
@@ -961,7 +979,7 @@ com_trait_ps_ord <- ordinate(com_trait_ps, method = "NMDS", distance = "bray")
 p_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord)
 print(p_com_tr)
 
-p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="site", shape = "enviro") 
+p2_com_tr = plot_ordination(com_trait_ps, com_trait_ps_ord, type="samples", color="long", shape = "enviro") 
 print(p2_com_tr)
 #p2_com_tr + geom_polygon(aes(fill=site)) + geom_point(size=5) + ggtitle("site")
 #TO PLOT BY TRAIT

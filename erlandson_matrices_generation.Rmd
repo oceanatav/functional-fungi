@@ -8,6 +8,29 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+#Read in OTU data (better our annotated taxa list, not the metadata?)
+
+erlandson_annotated <- read.csv("salix_rhizomorph.csv") %>%  mutate(Species = ifelse(Species %in% "", "sp.", Species)) %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+erlandson_taxa = read_csv("ccectos_wtaxonomy.csv")
+
+erl_tax_an <- left_join(erlandson_taxa, erlandson_annotated) %>% select(Plspp, Ecto_ID, Ecto_spp) %>%  mutate(No.Tip = rep(1)) %>% group_by(Plspp, Ecto_spp) %>% summarize (No.Tips = n())
+
+OTU <- erl_tax_an %>% select(Plspp,Ecto_spp, No.Tips) %>%pivot_wider(names_from = Ecto_spp, values_from = No.Tips) %>% column_to_rownames(var = "Plspp")
+```
+
+```{r}
+
+saveRDS(OTU, file = "erl_OTU.rds")
+
+
+#erlandson_taxa = read_csv("ccectos_wtaxonomy.csv") %>% select(Ecto_spp) %>% distinct() #check that we have same # of OTU's
+```
 
 Generate Abudncance table from erlandson raw dataset
 
@@ -25,11 +48,10 @@ Structure of end dataset is:
 # Trying out a new pipeline for the Erlandson data.
 
 
-```{r}
+```{r include=FALSE}
 # Trying out a new pipeline for the Erlandson data.
 
 library(tidyverse)
-library(vegan)
 
 # Goal: Get 1) a table of relative OTU abundances by tree,
 # 2) a table of relative TRAIT abundances by tree.
@@ -80,7 +102,7 @@ erlandson_otus_for_NMDS = as.matrix(erlandson_otus)
 ```
 
 # My code, Generate Trait Table abund Matrix
-```{r}
+```{r include=FALSE}
 trait_input <- read.csv("erlandson_matrix_input.csv") %>% filter(!is.na(type)) %>% group_by(Plspp, type)%>% summarize(count=n())
 
 trait_relabund_join <- left_join(relabund, trait_input) %>% filter(!is.na(type)) 
@@ -101,7 +123,7 @@ trait_otu_NMDS <- as.matrix(trait_otu)
 
 ```
 
-```{r}
+```{r include=FALSE}
 write.csv(erlandson_otus_for_NMDS, "erlandson_OTU.csv")
 write.csv(trait_otu_NMDS, "trait_OTU.csv")
 ```

@@ -22,7 +22,7 @@ library(tidyverse)
   
 ```{r read in Erlandson dataset}
 salix_raw <- read.csv("ccectos_wtaxonomy.csv")
-colnames(salix_raw)
+#colnames(salix_raw)
 salix <- salix_raw %>% select(-X)
 # Only consistent to Phylum level, some species names (will probably have to manually annotate)
 
@@ -34,6 +34,7 @@ salix <- salix_raw %>% select(-X)
 erlandson_annotated <- read.csv("salix_rhizomorph.csv") %>%  mutate(Species = ifelse(Species %in% "", "sp.", Species)) %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
 
 #erlandson_metadata <- left_join(salix, erlandson_annotated) %>% mutate (Tree_site = Plspp, Plspp = NULL)
+#saveRDS(erlandson_metadata, "erlandson_generated_metadata.rds")
 #write.csv(erlandson_metadata, "erlandson_generated_metadata.csv")
   # filter out sp. from Species column
 ```
@@ -58,9 +59,9 @@ library(fungaltraits)
 ```
 
 ```{r Access Fun^Fun db, include=FALSE}
-#fun_fun_db <-fungal_traits()
+fun_fun_db <-fungal_traits()
 long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
-#fun_fun_traits <- colnames(fun_fun_db)
+fun_fun_traits <- colnames(fun_fun_db)
 
 # [69] melanin_count, [101] trophic_mode_fg, [2] species, [6] acid_phosphatase, [45] em_expl, [56] growth_form_fg, [59] guild_fg, [49] Genus, [60] heatShockProtein_count, [68] melanin_content, [93-97] show levels of C, N, and P and C:N N:P ratios in tissue [13] 
 # rhizomorph? 
@@ -88,7 +89,7 @@ exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycor
 
 
 
-erlandson_expl <- left_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp) %>% distinct(.) %>% mutate(
+erlandson_expl <- left_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp) %>% mutate(
   distance =  case_when(grepl("long", Foraging_distance) ~ "long",
                         grepl("long", EXP.TYPE) ~ "long",
                         grepl("L", EXP.TYPE) ~ "long",
@@ -102,6 +103,7 @@ erlandson_expl <- left_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp) %>
                         grepl("contact", EXP.TYPE) ~ "short",
                         grepl("C", EXP.TYPE)~"short")) %>% distinct(Tip, .keep_all = T)
 
+
 #Generally will prefer DEEMY over other annotations
 # NO exploration type data available for species level :/ must do genus-level!
 
@@ -113,7 +115,7 @@ erlandson_expl <- left_join(annotated_merge, exp_type) %>%  drop_na(Ecto_spp) %>
 #Produce trait table to be turned into matrix
 
 ```{r}
-trait_matrix <- erlandson_expl %>% select(Plspp, distance, Rhizomorph) %>% mutate(No.Tips = rep(1)) %>% group_by(Plspp,distance,Rhizomorph) %>%  summarize(count=n()) %>% mutate(short = rep(NA), medium = rep(NA), long=rep(NA), rhizo = rep(NA), norhizo = rep(NA), unknown = rep(NA))%>% ungroup() 
+trait_matrix <- erlandson_expl %>% select(Plspp, distance, Rhizomorph) %>% mutate(No.Tips = rep(1)) %>% group_by(Plspp,distance,Rhizomorph) %>%  summarize(count=n()) %>% ungroup() %>%  mutate(short = rep(NA), medium = rep(NA), long=rep(NA), rhizo = rep(NA), norhizo = rep(NA), unknown = rep(NA)) 
 trait_matrix$distance <- replace_na(trait_matrix$distance, "unknown") 
 
 #To make for loop work
@@ -144,7 +146,26 @@ for(i in 1:nrow(trait_matrix)){
 }
 
 erl_traits <- trait_matrix %>% select(Plspp, short, medium, long, rhizo, norhizo, unknown)
-#need to repeat step to get distinct trees 
+
+short<- aggregate(short ~ Plspp, data = erl_traits, sum)
+medium <- aggregate(medium ~ Plspp, data = erl_traits, sum)
+#long <- aggregate(long ~ Plspp, data = erl_traits, sum)
+rhizo <- aggregate(rhizo ~ Plspp, data = erl_traits, sum)
+norhizo <- aggregate(norhizo ~ Plspp, data = erl_traits, sum)
+unknown <- aggregate(unknown ~ Plspp, data = erl_traits, sum)
+
+etr <-  left_join(unknown, short) %>%
+                left_join(., medium) %>%
+                left_join(., rhizo) %>%
+                left_join(., norhizo) %>% 
+  mutate(long = NA) %>% 
+  relocate(long, .after = medium) %>%
+  column_to_rownames(var = "Plspp")
+
+```
+Export Trait Table
+```{r}
+saveRDS(etr, "erl_trait_table.rds")
 ```
 
 ```{r}
