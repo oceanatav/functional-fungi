@@ -1,0 +1,110 @@
+---
+title: "Trait Annotation Backbone"
+author: "Oceana Tavasieff"
+date: "9/10/2021"
+output: html_document
+---
+
+Your input: -table of community data with abundance and grouped by tree
+Your output: -two dataframes with trees as column names, relativized abundances by tree. Columns are either OTU's or trait-complexes. Output as .rds files
+*Your notes below*
+
+#SETUP
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+```{r read in FungalTraits doc}
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% rename(Genus = GENUS) 
+
+ecm_short <- short_traits %>% drop_na(Ectomycorrhiza_exploration_type_template) %>% arrange(Genus)
+#colnames(short_traits)
+```
+
+```{r Install Fun^Fun db which may have more consistent annotations}
+# Version: https://zenodo.org/record/1216257
+
+# Via: https://github.com/traitecoevo/fungaltraits
+
+#install.packages("devtools")
+#devtools::install_github("ropenscilabs/datastorr")
+#devtools::install_github("traitecoevo/fungaltraits")
+library(fungaltraits)
+```
+
+```{r Access Fun^Fun db, include=FALSE}
+#fun_fun_db <-fungal_traits()
+long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
+
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+
+
+exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = "_", na.rm=T) 
+
+fun_fun_traits <- colnames(fungal_traits())
+ 
+```
+
+
+#YOUR INPUT
+-Community data
+```{r}
+richard_raw <- Richard_et_al_OTU_table <- read_delim("Richard et al OTU table.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r Generate OTU table}
+rich_OTU <- richard_raw %>% select(Taxon, EA07:CS09) %>% mutate(Taxon = str_replace(Taxon, " ", "_")) %>% 
+  column_to_rownames(var="Taxon") %>% 
+  t %>% 
+  as.data.frame %>% 
+  rownames_to_column(var ="Taxon") %>% mutate(enviro = if_else(str_detect(Taxon, "E"), "arid", "mesic")) %>% relocate(enviro, .after = Taxon) 
+
+rich_rel_OTU <- rich_OTU %>% mutate(sumAbund = select(., c(3:125,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .after = enviro)
+
+for(i in 4:ncol(rich_rel_OTU)) {
+  rich_rel_OTU[,i] <- rich_rel_OTU[,i]/rich_rel_OTU$sumAbund
+  }
+rich_rel_OTU <- rich_rel_OTU %>% 
+  mutate(sumAbund = select(., c(4:126,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  mutate(sumAbund = NULL,
+         enviro = NULL)
+rich_rel_OTU <- column_to_rownames(rich_rel_OTU, var = "Taxon")
+
+saveRDS(rich_rel_OTU, "NMDS_4_input/richard_OTU_matrix.rds")
+
+```
+
+```{r Generate Trait Matrix}
+rich_4tr <- richard_raw %>% select(-"GenBank accession number", -"Closest GenBank species", -"BLAST expected value‡") %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
+
+richard_annotated <- left_join(rich_4tr, exp_type) %>% rename(Rhizomorph = "Rhizomorph-DEEMY") %>% unite(ID, Genus, Species, sep=" ") %>% 
+  mutate(distance =  case_when(grepl("long", "Foraging_distance-DEEMY") ~ "long",
+                               grepl("L", EXP.TYPE) ~ "long",grepl("medium", "Foraging_distance-DEEMY")~"medium",
+                               grepl("medium", EXP.TYPE) ~ "medium",
+                               grepl("M", EXP.TYPE) ~ "medium",
+                               grepl("short", "Foraging_distance-DEEMY") ~ "short",
+                               grepl("short", EXP.TYPE) ~ "short",
+                               grepl("S", EXP.TYPE) ~ "short",
+                               grepl("contact", EXP.TYPE) ~ "short",
+                               grepl("C", EXP.TYPE)~"short"))%>% unique() #%>% select(-Etc, -"Foraging_distance-DEEMY", -EXP.TYPE, -Rhizomorph, distance) 
+richard_annotated$distance <- replace_na(richard_annotated$distance, "unknown")
+richard_annotated$Rhizomorph <- replace_na(richard_annotated$Rhizomorph, "unknown")
+
+tr1 <- richard_annotated  %>% select(ID, Rhizomorph:CS09, distance) %>% group_by(distance, Rhizomorph) %>% summarise_at(vars(EA07:CS09), list(sum)) %>% ungroup() %>% 
+  mutate(Rhizomorph = ifelse(Rhizomorph == "y", "rhizo", Rhizomorph),
+         Rhizomorph = ifelse(Rhizomorph == "n", "norhizo", Rhizomorph)) %>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>%  column_to_rownames("Trait_species") 
+
+rich_rel_trait <- tr1 %>%   mutate(sumAbund = rowSums(across(where(is.numeric)))) %>%  mutate(across(everything()), . / sumAbund) %>% select(-sumAbund)
+
+
+saveRDS(rich_rel_trait, "NMDS_4_input/richard_trait_matrix.rds")
+```
+

@@ -1,11 +1,11 @@
 ---
-title: "Trait Annotation"
+title: "Richard Trait Annotation"
 author: "Oceana Tavasieff"
 date: "8/12/2021"
 output: html_document
 ---
-The Goal of this Document will be to input a dataset and generated both a trait and an OTU matrix.
-  - The ds (dataset) must initially be annotated for rhizomorph prescence at DEEMY to the species level.
+The Goal of this Document will be to input a dataset and generate both a trait and an OTU matrix.
+  - The ds (dataset) must initially be manually annotated for rhizomorph prescence at DEEMY to the species level.
   -The trait/OTU matrices must have tree names as rownames
   -the trait matrix has traits as column names
 ```{r setup, include=FALSE}
@@ -75,9 +75,10 @@ rich_rel_OTU <- rich_rel_OTU %>%
          enviro = NULL)
 rich_rel_OTU <- column_to_rownames(rich_rel_OTU, var = "Taxon")
 
-saveRDS(rich_rel_OTU, "Richard_OTU.rds")
+saveRDS(rich_rel_OTU, "NMDS_4_input/richard_OTU_matrix.rds")
 
 ```
+#Produce trait matrix
 ```{r}
 rich_4tr <- richard_raw %>% select(-"GenBank accession number", -"Closest GenBank species", -"BLAST expected value‡") %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
 
@@ -94,18 +95,20 @@ richard_annotated <- left_join(rich_4tr, exp_type) %>% rename(Rhizomorph = "Rhiz
 richard_annotated$distance <- replace_na(richard_annotated$distance, "unknown")
 richard_annotated$Rhizomorph <- replace_na(richard_annotated$Rhizomorph, "unknown")
 
-tr1 <- richard_annotated  %>% select(ID, Rhizomorph:CS09, distance) %>% group_by(distance, Rhizomorph) %>% summarise_at(vars(EA07:CS09), list(sum)) %>% ungroup()
+tr1 <- richard_annotated  %>% select(ID, Rhizomorph:CS09, distance) %>% group_by(distance, Rhizomorph) %>% summarise_at(vars(EA07:CS09), list(sum)) %>% ungroup() %>% 
+  mutate(Rhizomorph = ifelse(Rhizomorph == "y", "rhizo", Rhizomorph),
+         Rhizomorph = ifelse(Rhizomorph == "n", "norhizo", Rhizomorph)) %>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>%  column_to_rownames("Trait_species") 
+
+rich_rel_trait <- tr1 %>%   mutate(sumAbund = rowSums(across(where(is.numeric)))) %>%  mutate(across(everything()), . / sumAbund) %>% select(-sumAbund)
 
 
-         #short = case_when(grepl("short", distance)~ 1),
-         #medium = case_when(grepl("medium", distance)~ 1),
-         #long = case_when(grepl("long", distance)~ 1),
-         #rhizo = case_when(grepl("y", Rhizomorph)~ 1), 
-         #norhizo = case_when(grepl("n", Rhizomorph)~ 1 )
+saveRDS(rich_rel_trait, "NMDS_4_input/richard_trait_matrix.rds")
 ```
 
-#Produce trait matrix
-```{r trait matrix}
+
+
+
+```{r appendix, eval=FALSE, include=FALSE}
 #WE will be producing a matrix that has NA's instead of zeroes. But if we would like to produce a curated matrix with zeroes, this is part of the code that could work:
  #short = if_else(str_detect(distance, "short"), 1, 0),
   #medium = if_else(str_detect(distance, "medium"), 1, 0),
@@ -116,7 +119,11 @@ tr1 <- richard_annotated  %>% select(ID, Rhizomorph:CS09, distance) %>% group_by
   #medium = ~replace(., is.na(.), 0))# %>% 
   #mutate_all(~replace(., is.na(.), 0)
 
-
+  #short = case_when(grepl("short", distance)~ 1),
+         #medium = case_when(grepl("medium", distance)~ 1),
+         #long = case_when(grepl("long", distance)~ 1),
+         #rhizo = case_when(grepl("y", Rhizomorph)~ 1), 
+         #norhizo = case_when(grepl("n", Rhizomorph)~ 1 )
 #To make for loop work
 trait_matrix <- richard_annotated
 
@@ -192,7 +199,7 @@ mendo_trait_table_rhizo <- pygmy.core %>%
 
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 annotated_merge <- left_join(salix, erlandson_annotated, by = "Ecto_spp")%>% mutate(Genus = Genus.x, X = NULL, Genus.x = NULL, Genus.y=NULL, abund = NULL, Subspecies = NULL, Accession_No = NULL, Notes = NULL)  # %>% filter(Species != "sp.") %>%  drop_na(Species) 
 # Add an exploration type column from the fungaltraits database 
 exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)

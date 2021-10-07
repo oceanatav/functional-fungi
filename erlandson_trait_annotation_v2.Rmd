@@ -1,0 +1,146 @@
+---
+title: "Trait Annotation Backbone"
+author: "Oceana Tavasieff"
+date: "9/10/2021"
+output: html_document
+---
+
+Your input: -table of community data with abundance and grouped by tree
+Your output: -two dataframes with trees as column names, relativized abundances by tree. Columns are either OTU's or trait-complexes. Output as .rds files
+*Your notes below*
+
+**Erlandson dataset. 10 Sept 2021. Must re-do with new trait-complexes (to avoid double-counting tips). Instead of manufacturing a single unknown column, we are separating tips based on how tey were able to be annotated. 
+For the first part, that's foraging distance (short, medium, long, unknown). 
+For the second, that's rhizomorph presence (rhizo, norhizo, unknown)
+E.g. medium_rhizo, unknown_norhizo, unknown_unknown
+
+This should preserve the trends we noticed before and certainly make some tables easier to create. **
+
+#SETUP
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+```{r read in FungalTraits doc}
+short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% rename(Genus = GENUS) 
+
+ecm_short <- short_traits %>% drop_na(Ectomycorrhiza_exploration_type_template) %>% arrange(Genus)
+#colnames(short_traits)
+```
+
+```{r Install Fun^Fun db which may have more consistent annotations}
+# Version: https://zenodo.org/record/1216257
+
+# Via: https://github.com/traitecoevo/fungaltraits
+
+#install.packages("devtools")
+#devtools::install_github("ropenscilabs/datastorr")
+#devtools::install_github("traitecoevo/fungaltraits")
+library(fungaltraits)
+```
+
+```{r Access Fun^Fun db, include=FALSE}
+#fun_fun_db <-fungal_traits()
+long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
+
+# Add an exploration type column from the fungaltraits database 
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+
+
+exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = "_", na.rm=T) %>% unite(ID, Genus, Species, sep=" ", remove = F)
+
+#fun_fun_traits <- colnames(fungal_traits())
+ 
+```
+
+
+#YOUR INPUT
+-Community data
+```{r}
+salix_raw <- read.csv("ccectos_wtaxonomy.csv")
+salix <- salix_raw %>% select(-X)
+erlandson_annotated <- read.csv("salix_rhizomorph.csv") %>%  mutate(Species = ifelse(Species %in% "", "sp.", Species)) %>% unite(Ecto_ID, Genus:Species, sep = " ", remove = FALSE)
+
+#Merge sample data and our manually DEEMY annotated (and BLAST-assigned) 
+
+erl_DEEMY <- left_join(salix, erlandson_annotated) %>% select(Tip:Genus, Plspp, mean, Ecto_ID, Rhizomorph, Foraging_distance)%>% 
+  mutate(enviro = if_else(mean < (-.5), "arid", "mesic"),
+         site = rep("cedar_creek"),
+         ID=Ecto_ID) 
+```
+
+```{r Annotate Source Dataset}
+erl_tbAnnotated <- erl_DEEMY %>% select(Tip, Genus, Ecto_spp, ID, Plspp, Rhizomorph, Foraging_distance)
+
+#Below is annotated dataframe
+erl_ann <- left_join(erl_tbAnnotated, exp_type) %>%  drop_na(Ecto_spp) %>% mutate(
+  distance =  case_when(grepl("long", Foraging_distance) ~ "long",
+                        grepl("long", EXP.TYPE) ~ "long",
+                        grepl("L", EXP.TYPE) ~ "long",
+                        grepl("medium", Foraging_distance)~"medium",
+                        grepl("medium", EXP.TYPE) ~ "medium",
+                        grepl("M", EXP.TYPE) ~ "medium",
+                        grepl("short", Foraging_distance) ~ "short",
+                        grepl("short", EXP.TYPE) ~ "short",
+                        grepl("S", EXP.TYPE) ~ "short",
+                        grepl("contact", Foraging_distance)~"short",
+                        grepl("contact", EXP.TYPE) ~ "short",
+                        grepl("C", EXP.TYPE)~"short"),
+  NoTips=rep(1)) %>% distinct(Tip, .keep_all = T) %>% select(Ecto_spp, Plspp, distance, Rhizomorph, NoTips) 
+```
+
+```{r Generate Trait Matrix}
+
+erl_un <- erl_ann
+erl_un$distance <- replace_na(erl_un$distance, "unknown")
+erl_un$Rhizomorph <- replace_na(erl_un$Rhizomorph, "unknown")
+erl_trait <- erl_un %>% mutate(
+  Rhizomorph = ifelse(Rhizomorph == "Y", "rhizo", Rhizomorph),
+  Rhizomorph = ifelse(Rhizomorph == "N", "norhizo", Rhizomorph),
+  Rhizomorph = ifelse(Rhizomorph == "", "unknown", Rhizomorph))%>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>% group_by(Plspp, Trait_species) %>% summarise(count=n()) %>% pivot_wider(., names_from = Trait_species, values_from = count) %>%  mutate_all(., ~replace(., is.na(.), 0)) %>% column_to_rownames(var="Plspp")
+
+#RELATAVIZE
+
+erl_rel_trait <- erl_trait %>% mutate(sumAbund = select(., c(1:7,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .before = medium_rhizo)
+
+for(i in 2:ncol(erl_rel_trait)) {
+  erl_rel_trait[,i] <- erl_rel_trait[,i]/erl_rel_trait$sumAbund
+}
+
+erl_rel_trait <- erl_rel_trait %>% mutate(sumAbund = NULL)
+
+saveRDS(erl_rel_trait, "NMDS_4_input/erlandson_trait_matrix.rds")
+```
+
+
+```{r Generate OTU Table}
+erl_OTU <- erl_ann %>% select(Ecto_spp, Plspp, NoTips) %>% group_by(Plspp, Ecto_spp) %>% summarize(count=n()) %>% pivot_wider(., names_from = Ecto_spp, values_from = count) %>% mutate_all(., ~replace(., is.na(.), 0)) %>% column_to_rownames(var="Plspp")
+
+#RELATAVIZE
+
+erl_rel_OTU <- erl_OTU %>% mutate(sumAbund = select(., c(1:81,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .before = Otidea_cf._bufonia)
+
+for(i in 2:ncol(erl_rel_OTU)) {
+  erl_rel_OTU[,i] <- erl_rel_OTU[,i]/erl_rel_OTU$sumAbund
+}
+
+erl_rel_OTU <- erl_rel_OTU %>% mutate(sumAbund = NULL)
+
+saveRDS(erl_rel_OTU, "NMDS_4_input/erlandson_OTU_matrix.rds")
+```
+
+```{r set aside tables for LB analysis}
+
+erl_list_enviro <- erl_DEEMY %>% select(Plspp, mean, enviro, site) %>% distinct(.)
+saveRDS(erl_list_enviro, "Tables_for_LB_Pairwise/erlandson_enviro_list.rds")
+saveRDS(erl_trait, "Tables_for_LB_Pairwise/erlandson_traits.rds")
+saveRDS(erl_OTU,"Tables_for_LB_Pairwise/erlandson_OTUs.rds" )
+```
+
