@@ -105,7 +105,15 @@ rich_rel_trait <- tr1 %>%   mutate(sumAbund = rowSums(across(where(is.numeric)))
 saveRDS(rich_rel_trait, "NMDS_4_input/richard_trait_matrix.rds")
 ```
 
+```{r set aside tables for LB analysis, eval=FALSE, include=FALSE}
 
+rich_list_enviro <- rich_OTU %>% mutate(site= rep("montpellier")) %>% rename(Tree=Taxon) %>% select(Tree,enviro, site)
+
+saveRDS(rich_list_enviro, "Tables_for_LB_Pairwise/richard_enviro_list.rds") #"E" denoted the arid treatment
+
+saveRDS(tr1, "Tables_for_LB_Pairwise/richard_traits.rds")
+saveRDS(rich_OTU,"Tables_for_LB_Pairwise/richard_OTUs.rds" )
+```
 
 
 ```{r appendix, eval=FALSE, include=FALSE}
