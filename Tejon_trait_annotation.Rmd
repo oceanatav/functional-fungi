@@ -1,5 +1,5 @@
 ---
-title: "Trait Annotation Backbone"
+title: "Tejon Trait Annotation"
 author: "Oceana Tavasieff"
 date: "9/10/2021"
 output: html_document
@@ -8,13 +8,20 @@ output: html_document
 Your input: -table of community data with abundance and grouped by tree
 Your output: -two dataframes with trees as column names, relativized abundances by tree. Columns are either OTU's or trait-complexes. Output as .rds files
 *Your notes below*
-**Tejon data**
+**Tejon data. An's paper (unpublished?)**
 #SETUP
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readxl)
 ```
+
+#Read in exploration type master dataframe
+
+```{r}
+exp_type <- readRDS("exploration_type_master.rds")
+```
+
 
 ```{r read in FungalTraits doc}
 short_traits <- read_xlsx("~/functional-fungi/FungalTraits 1.2_ver_16Dec_2020.xlsx") %>% rename(Genus = GENUS) 
@@ -39,75 +46,181 @@ library(fungaltraits)
 long_traits <- fungal_traits() %>% separate(speciesMatched, c("Genus", "Species", "Subspecies", "Etc"), " ")
 
 # Add an exploration type column from the fungaltraits database 
-exp_type_1 <- long_traits %>% select(Genus, Species, em_expl)
-exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template)
+exp_type_1 <- long_traits %>% select(Genus, Species, em_expl, guild_fg)
+exp_type_2 <- short_traits %>% select(Genus, Ectomycorrhiza_exploration_type_template, primary_lifestyle)
 
 
-exp_type <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = "_", na.rm=T) 
+traits <- merge(exp_type_1, exp_type_2) %>% unite(EXP.TYPE, em_expl, Ectomycorrhiza_exploration_type_template, sep = "_", na.rm=T) %>% unite(life_history, guild_fg, primary_lifestyle, sep = "_", na.rm=T) 
 
 fun_fun_traits <- colnames(fungal_traits())
  
 ```
 
-
 #YOUR INPUT
--Community data
+###Annotation
+
 ```{r}
 tejon_metadata <- read.csv("TraitAnalysisforOceana/ecto_OTUs.csv") 
+tejon.ecto <- read.csv('TraitAnalysisforOceana/ecto_OTUs.csv') 
+
+Htraits <-read.csv('TraitAnalysisforOceana/ecto_OTU_traits.csv') #Holly's trait table
 ```
-```{r}
-tejon_traits <- read.csv("TraitAnalysisforOceana/ecto_OTU_traits.csv")
+
+```{r newly annotate tejon data}
+
+tejon_2ann <- tejon.ecto %>% select(OTU_ID, OUT_MatchwMendo, species) %>% separate(species, c("Genus", "Species", "Etc"))
+
+new_ann <- left_join(tejon_2ann, traits) %>%
+  mutate(distance =  case_when(grepl("L", EXP.TYPE) ~ "long",
+                               grepl("medium", EXP.TYPE) ~ "medium",
+                               grepl("M", EXP.TYPE) ~ "medium",
+                               grepl("short", EXP.TYPE) ~ "short",
+                               grepl("S", EXP.TYPE) ~ "short",
+                               grepl("contact", EXP.TYPE) ~ "short",
+                               grepl("C", EXP.TYPE)~"short"))%>%
+  distinct() 
+
+new_ann$distance <- replace_na(new_ann$distance, "unknown")
+
+
+tejon_traits <- new_ann %>% filter(distance != "unknown") %>% select(OTU_ID, distance) %>% transmute(trait=rep("exploration_type"), type=distance, OTU_ID=OTU_ID) %>% bind_rows(., Htraits) %>% distinct()
 ```
+
+```{r include trait unknowns}
+
+#Get OTU list of unknowns
+
+tejon_dist_unknowns <- new_ann %>% filter(distance =="unknown") %>% select(OTU_ID, distance)%>% 
+  transmute(trait=rep("exploration_type"),
+            type = distance,
+            OTU_ID=OTU_ID) %>% 
+  bind_rows(tejon_traits, .) %>% 
+  filter(trait=="exploration_type") %>% 
+  distinct() %>% 
+  group_by(OTU_ID) %>% distinct(OTU_ID, .keep_all = T) #%>%mutate(type =if_else(type =="long distance", "long", type))
+
+
+tej_rhizos <- left_join(Htraits, tejon_2ann) %>% filter(trait=="rhizomorphs") %>% select(OTU_ID, trait)
+
+tejon_rhizo_unknowns <- tejon_2ann %>% select(OTU_ID) %>% left_join(., tej_rhizos) %>% filter(is.na(trait)) %>% select(OTU_ID) %>%
+  transmute(trait=rep("rhizomorphs"),
+            type=rep("r_unknown"), 
+            OTU_ID=OTU_ID) %>% 
+  bind_rows(tejon_dist_unknowns,.)
+
+tej_trait_total <- bind_rows(tejon_traits, tejon_rhizo_unknowns) %>% distinct() %>% mutate(type = if_else(type == "long distance", "long", type))
+tej_trait_total <- tej_trait_total[-c(32, 37, 43), ]
+tab <- tej_trait_total %>% group_by(trait, type) %>% summarize(count=n())
+
+
+#Now lets prepare to apply these to our tree list so we can cluster trait-species by tree
+
+#Bound these new annotations to Holly's old table--we got an additional 11 exploration type annotations-cool!
+#Now time to write a function that will inc
+```
+
+
+```{r remove duplicates/overlapping annotations between Holly and I, eval=FALSE}
+#I am preferring my method (while maximizing unknowns--so if i ave an unknown and holly doesnt, ill choose holly's annotation) because it likely reflects new additions to the fungal trait database
+
+#ttotr <- tej_trait_total %>% filter(trait=="rhizomorphs") #117--perfect
+ttote <- tej_trait_total %>% filter(trait=="exploration_type") #120 obsv (3 extras!!)
+
+!all(duplicated(ttote$OTU_ID)) #TRUE
+
+x <- ttote$OTU_ID
+answer <- FALSE
+n <- length(x)
+for(count in 1:n){
+  for(compare in x[-count]){
+    if(x[count] == compare){
+      answer <- TRUE
+      break()
+    }
+  }
+  if(answer){break()}
+}
+# Using the ABOVE (https://stackoverflow.com/questions/61061799/for-loop-in-r-to-find-duplicates-in-single-vector-without-built-in-functions) to tell me which ones are duplicates, then looking at new_ann to see which one is correct. Proces--run code, see under Values in Global Environment that compare = "OTU_123" then manually remove the erroneous row in an above chunk. Then run the code for tejon_traits_total and the above thing again until we get 2x117 in tejon_traits total. There are 3 overlapping annotations.
+
+
+# 1 - OTU_318 id'd by the for loop. Short by new_ann, med by Holly. Manually remove from tejon_traits. Index [32,]
+# 2 - OTU_830. short by new_ann, med by Holly. Remove medium. Index [37,]
+# 3 - OTU_1266. contact/short by new_ann, med by holly. index[43, ]
+# 4... - Now it just begins to pick up the duplicates in the total trait table (each OTU being repeated 2x) tejon_traits_total is now 2x117 rows so perfect
+
+```
+```{r test if annotations were combined ideally, eval=FALSE}
+
+#Rh_OTUs <-tejon_traits %>% filter(trait=="rhizomorphs") #117 observations, so we definitely have fully annotated our ectos
+#ET_OTUs <-tejon_traits %>% filter(trait=="exploration_type") #151 observations?? that's not right. Should be 117. This is likely artifacts from Holly annotating by genus-level agreement. What should I do??
+
+    ##(ABOVE:Before fixing the code for tejon_dist_unknowns)
+
+
+
+dis_test <- tejon_dist_unknowns %>% filter(type!="unknown") # 47 obsv, 70 unknowns. This is ideal--That we have more annotations than unknowns (or that the annotations Holly made by her method (widespread genus-lvl agreement on exp_type for those assoc. w/ same genus of tree) are considered first by our distinct() cmd. thus we get more annotations than by either just my method or just hers (I think its about 11 new exp_type annotations))
+t2 <- new_ann %>% filter(distance=="unknown") #101 un-annotated by my method (101 unknowns)
+t3<-unknowns_before_distinct%>% filter(type=="unknown") #101 unknown exp_types by my method (fungal traits masterlist) 
+
+unknowns_before_distinct <- new_ann %>% filter(distance =="unknown") %>% select(OTU_ID, distance)%>% 
+  transmute(trait=rep("exploration_type"),
+            type = distance,
+            OTU_ID=OTU_ID) %>% 
+  bind_rows(tejon_traits, .) %>% 
+  filter(trait=="exploration_type") %>% 
+  distinct()
+```
+
+
+
+###Typical pipeline
 ## Tejon Data Cleaning (Holly)
 
 ```{r tejon data cleaning}
 
-tejon.trees <- read_csv('TraitAnalysisforOceana/fungal-abundance.csv') #OTU table
-tejon.ecto <- read.csv('TraitAnalysisforOceana/ecto_OTUs.csv') #OTU's of only EcM
-tejon.trees <- tejon.trees[tejon.trees$site!='intermediate',] #removes intermediate site from OTU table
+tejon.trees <- read_csv('TraitAnalysisforOceana/fungal-abundance.csv') %>% filter(site != "intermediate") #OTU table, remove intermediate site
+```
+
+```{r}
 
 tejon.trees.ecto <- select(tejon.trees,tree, site) %>% cbind(tejon.trees[,colnames(tejon.trees) %in% tejon.ecto$OTU_ID])%>% 
   mutate(.,enviro = site,
          site = rep("tejon", nrow(tejon.trees))) %>% 
   relocate(site, .before = tree) %>% 
   relocate(enviro, .after = tree)
-write.csv(tejon.trees.ecto,'tejon_trees_ecto.csv')
-#**might have to redo^ so arid = 1 and mesic = 3 --probablhy an ifelse command**
-
+#write.csv(tejon.trees.ecto,'tejon_trees_ecto.csv')
 ```
 
 # Generate Trait Table (Holly)
 ```{r}
-# Make a table that groups by traits, not OTUs
-
-tejon.ecto.traits <-read.csv('TraitAnalysisforOceana/ecto_OTU_traits.csv')#trait + OTU, not a trait abundance matrix yet
-
-tejon.ecto.traits$trait <- as.factor(tejon.ecto.traits$trait) # allows for levels cmd to work but may be a bad move?-addition by Oceana
-
-#head(tejon.ecto.traits)
-#levels(tejon.ecto.traits$trait) #[1] "exploration_type" "rhizomorphs"  
-
-tejon.tree.traits <- tejon.trees.ecto %>% select(site, tree, enviro) %>% 
+trait_by_tree <- tejon.trees.ecto %>% select(site, tree, enviro) %>% 
   mutate(short = 0,
          long = 0,
          medium = 0,
+         unknown = 0,
          norhizo = 0,
-         rhizo = 0) 
+         rhizo = 0,
+         r_unknown = 0) 
   #subset out columns site, tree, enviro
-short <- tejon.ecto.traits[tejon.ecto.traits$type=='short',]$OTU_ID
-medium <- tejon.ecto.traits[tejon.ecto.traits$type=='medium',]$OTU_ID
-long <- tejon.ecto.traits[tejon.ecto.traits$type=='long distance',]$OTU_ID
-rhizo <- tejon.ecto.traits[tejon.ecto.traits$type=='r_true',]$OTU_ID
-norhizo <- tejon.ecto.traits[tejon.ecto.traits$type=='r_false',]$OTU_ID
+short <- tej_trait_total[tej_trait_total$type=='short',]$OTU_ID
+medium <- tej_trait_total[tej_trait_total$type=='medium',]$OTU_ID
+long <- tej_trait_total[tej_trait_total$type=='long',]$OTU_ID
+unknown <- tej_trait_total[tej_trait_total$type=='unknown',]$OTU_ID
+rhizo <- tej_trait_total[tej_trait_total$type=='r_true',]$OTU_ID
+norhizo <- tej_trait_total[tej_trait_total$type=='r_false',]$OTU_ID
+r_unknown <- tej_trait_total[tej_trait_total$type=='r_unknown',]$OTU_ID
 
 #holly then writes the proceeding function to test
 ```
 
 # Function to Test if Fungus has a trait
-```{r may want to write a different method}
+```{r create trait table}
 
 #roughhh interp: this function pulls in abundance data per OTU per tree(id hope), relating trait w OTU using tejon.ecto.traits table
 #Continue to try to find a tidyverse way to pull in the above lines and this for loop
+
+#Let's use fungal abundance table 
+
 for(i in 4:dim(tejon.trees.ecto)[2]){
 	# for each fungus
 	# determine whether it is a short-dist forager
@@ -117,28 +230,37 @@ for(i in 4:dim(tejon.trees.ecto)[2]){
 	  hold <- tejon.trees.ecto[,i]
 	}
 	
-	tejon.tree.traits$short <- tejon.tree.traits$short + hold
+	trait_by_tree$short <- trait_by_tree$short + hold
 
 	# determine whether it is a medium-dist forager
 	hold <- rep(0, dim(tejon.trees.ecto)[1])
 	if(colnames(tejon.trees.ecto)[i] %in% medium){ hold <- tejon.trees.ecto[,i] }
-	tejon.tree.traits$medium <- tejon.tree.traits$medium + hold
+	trait_by_tree$medium <- trait_by_tree$medium + hold
 
 	# determine whether it is a long-dist forager
 	hold <- rep(0, dim(tejon.trees.ecto)[1])
 	if(colnames(tejon.trees.ecto)[i] %in% long){ hold <- tejon.trees.ecto[,i] }
-	tejon.tree.traits$long <- tejon.tree.traits$long + hold
+	trait_by_tree$long <- trait_by_tree$long + hold
+	
+	# for those OTU's that couldnt be annotated by exploration type
+	hold <- rep(0, dim(tejon.trees.ecto)[1])
+	if(colnames(tejon.trees.ecto)[i] %in% unknown){ hold <- tejon.trees.ecto[,i] }
+	trait_by_tree$long <- trait_by_tree$unknown + hold
 	
 	# determine whether it makes rhizomorphs
 	hold <- rep(0, dim(tejon.trees.ecto)[1])
 	if(colnames(tejon.trees.ecto)[i] %in% rhizo){ hold <- tejon.trees.ecto[,i] }
-	tejon.tree.traits$rhizo <- tejon.tree.traits$rhizo + hold
+	trait_by_tree$rhizo <- trait_by_tree$rhizo + hold
 		
 	# determine whether it doesn't make rhizomorphs
 	hold <- rep(0, dim(tejon.trees.ecto)[1])
 	if(colnames(tejon.trees.ecto)[i] %in% norhizo){ hold <- tejon.trees.ecto[,i] }
-	tejon.tree.traits$norhizo <- tejon.tree.traits$norhizo + hold
+	trait_by_tree$norhizo <- trait_by_tree$norhizo + hold
 	
+		# for those OTU's that couldnt be annotated by rhizomorphs
+	hold <- rep(0, dim(tejon.trees.ecto)[1])
+	if(colnames(tejon.trees.ecto)[i] %in% r_unknown){ hold <- tejon.trees.ecto[,i] }
+	trait_by_tree$norhizo <- trait_by_tree$r_unknown + hold
 }
 
 #for now this function is better than anything I can make
@@ -148,7 +270,7 @@ for(i in 4:dim(tejon.trees.ecto)[2]){
 ```{r}
 #TEJON TRAITS
 
-tejon_rel_traits <- tejon.tree.traits %>%
+tejon_rel_traits <- trait_by_tree %>%
     mutate(sumAbund = select(., short:rhizo) %>% 
              rowSums(na.rm = TRUE)) %>% 
   transmute(tree = tree,
