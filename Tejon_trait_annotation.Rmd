@@ -183,89 +183,58 @@ tejon.trees <- read_csv('TraitAnalysisforOceana/fungal-abundance.csv') %>% filte
 
 ```{r}
 
-tejon.trees.ecto <- select(tejon.trees,tree, site) %>% cbind(tejon.trees[,colnames(tejon.trees) %in% tejon.ecto$OTU_ID])%>% 
+tejon_OTU <- select(tejon.trees,tree, site) %>% cbind(tejon.trees[,colnames(tejon.trees) %in% tejon.ecto$OTU_ID])%>% 
   mutate(.,enviro = site,
          site = rep("tejon", nrow(tejon.trees))) %>% 
   relocate(site, .before = tree) %>% 
   relocate(enviro, .after = tree)
 #write.csv(tejon.trees.ecto,'tejon_trees_ecto.csv')
 ```
-
-# Generate Trait Table (Holly)
 ```{r}
-trait_by_tree <- tejon.trees.ecto %>% select(site, tree, enviro) %>% 
-  mutate(short = 0,
-         long = 0,
-         medium = 0,
-         unknown = 0,
-         norhizo = 0,
-         rhizo = 0,
-         r_unknown = 0) 
-  #subset out columns site, tree, enviro
-short <- tej_trait_total[tej_trait_total$type=='short',]$OTU_ID
-medium <- tej_trait_total[tej_trait_total$type=='medium',]$OTU_ID
-long <- tej_trait_total[tej_trait_total$type=='long',]$OTU_ID
-unknown <- tej_trait_total[tej_trait_total$type=='unknown',]$OTU_ID
-rhizo <- tej_trait_total[tej_trait_total$type=='r_true',]$OTU_ID
-norhizo <- tej_trait_total[tej_trait_total$type=='r_false',]$OTU_ID
-r_unknown <- tej_trait_total[tej_trait_total$type=='r_unknown',]$OTU_ID
+4:45pm
+#Try to transpose table of totals and write a new function to paste OTU's im not too clear on this but holly fxn isnt working mysteriously
 
-#holly then writes the proceeding function to test
+test_tej <- tej_trait_total 
+
+t2 <- tejon_OTU %>% select(-site, -enviro) %>% pivot_longer(., cols=c(2:118)) %>% rename(OTU_ID=name) %>% left_join(., tej_trait_total)
+
+t3<- t2 %>% select(-OTU_ID, -trait) %>% unique() %>% group_by(tree, type) %>% summarize(., count=sum(value)) %>% mutate(
+  type=if_else(type=="r_true", "rhizo", type),
+  type=if_else(type=="r_false", "norhizo", type)) %>% ungroup()
+
+#this is not quite getting me the result i want--I need to intrerfeer before dropping OTU to build the trait-function complexes But yay! finally free from that mysterious function
+    
+    
+    # %>%  pivot_wider(names_from = type, values_from=count)
+
+
 ```
 
-# Function to Test if Fungus has a trait
-```{r create trait table}
+```{r Generate Trait Matrix}
 
-#roughhh interp: this function pulls in abundance data per OTU per tree(id hope), relating trait w OTU using tejon.ecto.traits table
-#Continue to try to find a tidyverse way to pull in the above lines and this for loop
+mendo_un <- mendo_ann
+mendo_un$distance <- replace_na(mendo_un$distance, "unknown")
+mendo_un$Rhizomorph <- replace_na(mendo_un$Rhizomorph, "unknown")
+mendo_trait <- mendo_un %>% mutate(
+  Rhizomorph = ifelse(Rhizomorph == "y", "rhizo", Rhizomorph),
+  Rhizomorph = ifelse(Rhizomorph == "n", "norhizo", Rhizomorph),
+  Rhizomorph = ifelse(Rhizomorph == "m", "unknown", Rhizomorph),
+  Rhizomorph = ifelse(Rhizomorph == "", "unknown", Rhizomorph))%>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>% group_by(Tree, Trait_species) %>% summarise(count=n()) %>% pivot_wider(., names_from = Trait_species, values_from = count) %>%  mutate_all(., ~replace(., is.na(.), 0)) %>% column_to_rownames(var="Tree")
 
-#Let's use fungal abundance table 
+#RELATAVIZE
 
-for(i in 4:dim(tejon.trees.ecto)[2]){
-	# for each fungus
-	# determine whether it is a short-dist forager
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	
-	if(colnames(tejon.trees.ecto)[i] %in% short){
-	  hold <- tejon.trees.ecto[,i]
-	}
-	
-	trait_by_tree$short <- trait_by_tree$short + hold
+mendo_rel_trait <- mendo_trait %>% mutate(sumAbund = select(., c(1:6,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .before = long_rhizo)
 
-	# determine whether it is a medium-dist forager
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% medium){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$medium <- trait_by_tree$medium + hold
-
-	# determine whether it is a long-dist forager
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% long){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$long <- trait_by_tree$long + hold
-	
-	# for those OTU's that couldnt be annotated by exploration type
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% unknown){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$long <- trait_by_tree$unknown + hold
-	
-	# determine whether it makes rhizomorphs
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% rhizo){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$rhizo <- trait_by_tree$rhizo + hold
-		
-	# determine whether it doesn't make rhizomorphs
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% norhizo){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$norhizo <- trait_by_tree$norhizo + hold
-	
-		# for those OTU's that couldnt be annotated by rhizomorphs
-	hold <- rep(0, dim(tejon.trees.ecto)[1])
-	if(colnames(tejon.trees.ecto)[i] %in% r_unknown){ hold <- tejon.trees.ecto[,i] }
-	trait_by_tree$norhizo <- trait_by_tree$r_unknown + hold
+for(i in 2:ncol(mendo_rel_trait)) {
+  mendo_rel_trait[,i] <- mendo_rel_trait[,i]/mendo_rel_trait$sumAbund
 }
 
-#for now this function is better than anything I can make
-```
+mendo_rel_trait <- mendo_rel_trait %>% mutate(sumAbund = NULL)
 
+saveRDS(mendo_rel_trait, "NMDS_4_input/mendo_trait_matrix.rds") 
+```
 #Relativize TEJON tables
 ```{r}
 #TEJON TRAITS
@@ -313,59 +282,13 @@ tejon_OTU_matrix <- as.matrix(tejon_rel_OTU)
 tejon_trait_matrix <- as.matrix(tejon_rel_traits)
 ```
 
-```{r}
-richard_raw <- Richard_et_al_OTU_table <- read_delim("Richard et al OTU table.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+```{r set aside tables for LB analysis, eval=FALSE}
+pygmy.clean<-read.csv("TraitAnalysisforOceana/pygmy-cleandata-wsoils.csv")
 
+mendo_list_enviro <- pygmy.clean %>% select(Tree, Pygmy) %>% distinct() %>% mutate(enviro = if_else(Pygmy == 1, "arid", "mesic"),
+            Tree = Tree,
+            site = rep("mendocino"))
+saveRDS(mendo_list_enviro, "Tables_for_LB_Pairwise/mendo_enviro_list.rds")
+saveRDS(mendo_trait, "Tables_for_LB_Pairwise/mendo_traits.rds")
+saveRDS(mendo_OTU,"Tables_for_LB_Pairwise/mendo_OTUs.rds" )
 ```
-
-```{r Generate OTU table}
-rich_OTU <- richard_raw %>% select(Taxon, EA07:CS09) %>% mutate(Taxon = str_replace(Taxon, " ", "_")) %>% 
-  column_to_rownames(var="Taxon") %>% 
-  t %>% 
-  as.data.frame %>% 
-  rownames_to_column(var ="Taxon") %>% mutate(enviro = if_else(str_detect(Taxon, "E"), "arid", "mesic")) %>% relocate(enviro, .after = Taxon) 
-
-rich_rel_OTU <- rich_OTU %>% mutate(sumAbund = select(., c(3:125,)) %>% 
-             rowSums(na.rm = TRUE)) %>% 
-  relocate(sumAbund, .after = enviro)
-
-for(i in 4:ncol(rich_rel_OTU)) {
-  rich_rel_OTU[,i] <- rich_rel_OTU[,i]/rich_rel_OTU$sumAbund
-  }
-rich_rel_OTU <- rich_rel_OTU %>% 
-  mutate(sumAbund = select(., c(4:126,)) %>% 
-             rowSums(na.rm = TRUE)) %>% 
-  mutate(sumAbund = NULL,
-         enviro = NULL)
-rich_rel_OTU <- column_to_rownames(rich_rel_OTU, var = "Taxon")
-
-saveRDS(rich_rel_OTU, "NMDS_4_input/richard_OTU_matrix.rds")
-
-```
-
-```{r Generate Trait Matrix}
-rich_4tr <- richard_raw %>% select(-"GenBank accession number", -"Closest GenBank species", -"BLAST expected value‡") %>% separate(Taxon, c("Genus", "Species", "Etc"), " ")
-
-richard_annotated <- left_join(rich_4tr, exp_type) %>% rename(Rhizomorph = "Rhizomorph-DEEMY") %>% unite(ID, Genus, Species, sep=" ") %>% 
-  mutate(distance =  case_when(grepl("long", "Foraging_distance-DEEMY") ~ "long",
-                               grepl("L", EXP.TYPE) ~ "long",grepl("medium", "Foraging_distance-DEEMY")~"medium",
-                               grepl("medium", EXP.TYPE) ~ "medium",
-                               grepl("M", EXP.TYPE) ~ "medium",
-                               grepl("short", "Foraging_distance-DEEMY") ~ "short",
-                               grepl("short", EXP.TYPE) ~ "short",
-                               grepl("S", EXP.TYPE) ~ "short",
-                               grepl("contact", EXP.TYPE) ~ "short",
-                               grepl("C", EXP.TYPE)~"short"))%>% unique() #%>% select(-Etc, -"Foraging_distance-DEEMY", -EXP.TYPE, -Rhizomorph, distance) 
-richard_annotated$distance <- replace_na(richard_annotated$distance, "unknown")
-richard_annotated$Rhizomorph <- replace_na(richard_annotated$Rhizomorph, "unknown")
-
-tr1 <- richard_annotated  %>% select(ID, Rhizomorph:CS09, distance) %>% group_by(distance, Rhizomorph) %>% summarise_at(vars(EA07:CS09), list(sum)) %>% ungroup() %>% 
-  mutate(Rhizomorph = ifelse(Rhizomorph == "y", "rhizo", Rhizomorph),
-         Rhizomorph = ifelse(Rhizomorph == "n", "norhizo", Rhizomorph)) %>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>%  column_to_rownames("Trait_species") 
-
-rich_rel_trait <- tr1 %>%   mutate(sumAbund = rowSums(across(where(is.numeric)))) %>%  mutate(across(everything()), . / sumAbund) %>% select(-sumAbund)
-
-
-saveRDS(rich_rel_trait, "NMDS_4_input/richard_trait_matrix.rds")
-```
-
