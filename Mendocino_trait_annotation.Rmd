@@ -131,7 +131,7 @@ saveRDS(mendo_rel_OTU, "NMDS_4_input/mendo_OTU_matrix.rds")
 ```
 
 
-```{r set aside tables for LB analysis}
+```{r set aside tables for LB analysis, eval=FALSE}
 pygmy.clean<-read.csv("TraitAnalysisforOceana/pygmy-cleandata-wsoils.csv")
 
 mendo_list_enviro <- pygmy.clean %>% select(Tree, Pygmy) %>% distinct() %>% mutate(enviro = if_else(Pygmy == 1, "arid", "mesic"),
