@@ -189,76 +189,8 @@ tejon_OTU <- select(tejon.trees,tree, site) %>% cbind(tejon.trees[,colnames(tejo
   relocate(site, .before = tree) %>% 
   relocate(enviro, .after = tree)
 #write.csv(tejon.trees.ecto,'tejon_trees_ecto.csv')
-```
-```{r}
-4:45pm
-#Try to transpose table of totals and write a new function to paste OTU's im not too clear on this but holly fxn isnt working mysteriously
 
-test_tej <- tej_trait_total 
-
-t2 <- tejon_OTU %>% select(-site, -enviro) %>% pivot_longer(., cols=c(2:118)) %>% rename(OTU_ID=name) %>% left_join(., tej_trait_total)
-
-t3<- t2 %>% select(-OTU_ID, -trait) %>% unique() %>% group_by(tree, type) %>% summarize(., count=sum(value)) %>% mutate(
-  type=if_else(type=="r_true", "rhizo", type),
-  type=if_else(type=="r_false", "norhizo", type)) %>% ungroup()
-
-#this is not quite getting me the result i want--I need to intrerfeer before dropping OTU to build the trait-function complexes But yay! finally free from that mysterious function
-    
-    
-    # %>%  pivot_wider(names_from = type, values_from=count)
-
-
-```
-
-```{r Generate Trait Matrix}
-
-mendo_un <- mendo_ann
-mendo_un$distance <- replace_na(mendo_un$distance, "unknown")
-mendo_un$Rhizomorph <- replace_na(mendo_un$Rhizomorph, "unknown")
-mendo_trait <- mendo_un %>% mutate(
-  Rhizomorph = ifelse(Rhizomorph == "y", "rhizo", Rhizomorph),
-  Rhizomorph = ifelse(Rhizomorph == "n", "norhizo", Rhizomorph),
-  Rhizomorph = ifelse(Rhizomorph == "m", "unknown", Rhizomorph),
-  Rhizomorph = ifelse(Rhizomorph == "", "unknown", Rhizomorph))%>% unite(Trait_species, distance, Rhizomorph, sep = "_" ) %>% mutate(Trait_species = as.character(.$Trait_species)) %>% group_by(Tree, Trait_species) %>% summarise(count=n()) %>% pivot_wider(., names_from = Trait_species, values_from = count) %>%  mutate_all(., ~replace(., is.na(.), 0)) %>% column_to_rownames(var="Tree")
-
-#RELATAVIZE
-
-mendo_rel_trait <- mendo_trait %>% mutate(sumAbund = select(., c(1:6,)) %>% 
-             rowSums(na.rm = TRUE)) %>% 
-  relocate(sumAbund, .before = long_rhizo)
-
-for(i in 2:ncol(mendo_rel_trait)) {
-  mendo_rel_trait[,i] <- mendo_rel_trait[,i]/mendo_rel_trait$sumAbund
-}
-
-mendo_rel_trait <- mendo_rel_trait %>% mutate(sumAbund = NULL)
-
-saveRDS(mendo_rel_trait, "NMDS_4_input/mendo_trait_matrix.rds") 
-```
-#Relativize TEJON tables
-```{r}
-#TEJON TRAITS
-
-tejon_rel_traits <- trait_by_tree %>%
-    mutate(sumAbund = select(., short:rhizo) %>% 
-             rowSums(na.rm = TRUE)) %>% 
-  transmute(tree = tree,
-         short = short/sumAbund, 
-         long = long/sumAbund, 
-         medium = medium/sumAbund, 
-         norhizo = norhizo/ sumAbund, 
-         rhizo = rhizo/sumAbund) %>% 
-  # group_by(tree) %>% 
-  #summarise(short = sum(short),
-   #        medium = sum(medium),
-    #       long = sum(long),
-     #      rhizo = sum(rhizo),
-      #     norhizo = sum(norhizo)) %>% 
-     column_to_rownames(., var = "tree")
-
-#TEJON OTU
-
-tejon_rel_OTU <- tejon.trees.ecto %>%
+tejon_rel_OTU <- tejon_OTU %>%
     mutate(sumAbund = select(., c(4:120,)) %>% 
              rowSums(na.rm = TRUE)) %>% 
   relocate(sumAbund, .after = enviro)
@@ -271,24 +203,69 @@ tejon_rel_OTU <- tejon_rel_OTU %>%
              rowSums(na.rm = TRUE)) %>% 
   mutate(sumAbund = NULL,
          site = NULL,
-         enviro = NULL)
-tejon_rel_OTU <- column_to_rownames(tejon_rel_OTU, var = "tree")
-
-tejon_tree_names <- unique(rownames(tejon.trees.ecto$tree))
+         enviro = NULL) %>% column_to_rownames(var = "tree")
+saveRDS(tejon_rel_OTU, "NMDS_4_input/tejon_OTU_matrix.rds")
 ```
-#TEJON matrices
 ```{r}
-tejon_OTU_matrix <- as.matrix(tejon_rel_OTU)
-tejon_trait_matrix <- as.matrix(tejon_rel_traits)
+
+#Try to transpose table of totals and write a new function to paste OTU's im not too clear on this but holly fxn isnt working mysteriously
+
+test_tej <- tej_trait_total 
+
+t2 <- tejon_OTU %>% select(-site, -enviro) %>% pivot_longer(., cols=c(2:118)) %>% rename(OTU_ID=name) %>% left_join(., tej_trait_total) %>% mutate(rh = NA, et = NA)
+
+for(i in 1:nrow(t2)){
+  
+  if(t2$trait[i] =="rhizomorphs") {
+   t2$rh[i] = paste(t2$OTU_ID[i])
+  }
+  
+  if(t2$trait[i]=="exploration_type") {
+    t2$et[i] = t2$OTU_ID[i]
+  }
+}
+
+t3_rh<-t2 %>% filter(trait =="rhizomorphs") %>% transmute(
+  tree=tree,
+  value=value,
+  OTU_ID=rh,
+  rhizo = type
+)
+t3_et <-t2 %>% filter(trait =="exploration_type") %>%  transmute(
+  tree=tree,
+  value=value,
+  OTU_ID=et,
+  exp_type = type
+) %>% left_join(., t3_rh)
+
+tejon_trait<- t3_et %>% mutate(
+  rhizo=if_else(rhizo=="r_true", "rhizo", rhizo),
+  rhizo=if_else(rhizo=="r_false", "norhizo", rhizo),
+  rhizo=if_else(rhizo=="r_unknown", "unknown", rhizo)) %>% 
+  unite(trait, exp_type, rhizo, sep="_") %>% group_by(tree, trait) %>% summarize(., count=sum(value)) %>%  pivot_wider(names_from = trait, values_from=count) %>% mutate_all(., ~replace(., is.na(.), 0)) %>% column_to_rownames(var="tree")
+
+#RELATAVIZE
+
+tejon_rel_trait <- tejon_trait %>% mutate(sumAbund = select(., c(1:8,)) %>% 
+             rowSums(na.rm = TRUE)) %>% 
+  relocate(sumAbund, .before = long_rhizo)
+
+for(i in 2:ncol(tejon_rel_trait)) {
+  tejon_rel_trait[,i] <- tejon_rel_trait[,i]/tejon_rel_trait$sumAbund
+}
+
+tejon_rel_trait <- tejon_rel_trait %>% mutate(sumAbund = NULL)
+
+saveRDS(tejon_rel_trait, "NMDS_4_input/tejon_trait_matrix.rds") 
 ```
 
 ```{r set aside tables for LB analysis, eval=FALSE}
-pygmy.clean<-read.csv("TraitAnalysisforOceana/pygmy-cleandata-wsoils.csv")
 
-mendo_list_enviro <- pygmy.clean %>% select(Tree, Pygmy) %>% distinct() %>% mutate(enviro = if_else(Pygmy == 1, "arid", "mesic"),
-            Tree = Tree,
-            site = rep("mendocino"))
-saveRDS(mendo_list_enviro, "Tables_for_LB_Pairwise/mendo_enviro_list.rds")
-saveRDS(mendo_trait, "Tables_for_LB_Pairwise/mendo_traits.rds")
-saveRDS(mendo_OTU,"Tables_for_LB_Pairwise/mendo_OTUs.rds" )
+tejon_list_enviro <- tejon_OTU %>% select(tree, site, enviro) 
+
+saveRDS(tejon_list_enviro, "Tables_for_LB_Pairwise/tejon_enviro_list.rds")
+saveRDS(tejon_trait, "Tables_for_LB_Pairwise/tejon_traits.rds")
+
+tej_for_LB <- tejon_OTU %>% select(-site, -enviro) %>% column_to_rownames("tree")
+saveRDS(tej_for_LB,"Tables_for_LB_Pairwise/tejon_OTUs.rds" )
 ```
