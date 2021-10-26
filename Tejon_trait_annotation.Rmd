@@ -82,7 +82,7 @@ new_ann <- left_join(tejon_2ann, traits) %>%
 
 new_ann$distance <- replace_na(new_ann$distance, "unknown")
 
-
+#saveRDS(new_ann, "NMDS_4_input/tejon_spp_list.rds")
 tejon_traits <- new_ann %>% filter(distance != "unknown") %>% select(OTU_ID, distance) %>% transmute(trait=rep("exploration_type"), type=distance, OTU_ID=OTU_ID) %>% bind_rows(., Htraits) %>% distinct()
 ```
 
