@@ -37,13 +37,29 @@ rich_traits <- readRDS("NMDS_4_input/rich_trait_matrix.rds")
 ref_ID_raw <- readRDS("master_ID_df.rds")
 ref_ID <- ref_ID_raw
 
-clean_up_ref <- function(new_list, ref_list, ref_ID) {
+clean_up_ref <- function(ref_ID) {
   for(i in 1:nrow(ref_ID)){
-    if(jkasfjaf )
-      agrep()
-  }
+    #ten_percent <- 0.1*nchar(ref_ID$ID[i])
+    if(grepl("sp.", ref_ID$ID[i],ignore.case = T) == FALSE) {
+    fuzzy_matches <- agrep(ref_ID$ID[i], x = ref_ID$ID, max =(0.001*nchar(ref_ID$ID[i])), ignore.case = TRUE) #returns the indices of fuzzy matches
+    
+    shortest_name <- min(fuzzy_matches) #I want to pull the shortest name from this and then make that a row in a new, "cleaned up" ref_ID
+    
+    #I also need to homogenize anything with matching OTU's
+    NEW_LIST =rbind(ref_ID[fuzzy_matches,])
+    
+  #we should exclude anything with "sp." at the end from this analysis huh
+    #that way we retain the diffierent OTU's
+    }
+    }
+  new_df <- NEW_LIST
+  fuzz_test <<- fuzzy_matches
 }
 
+clean_up_ref(ref_ID)
+cenge <- agrep(ref_ID$ID[1], x = ref_ID$ID, max = 2, ignore.case = TRUE)
+cenge_short <- min(nchar(ref_ID[cenge,]))
+tomentella <- agrep(ref_ID$ID[187], x = ref_ID$ID, max = 1, ignore.case = TRUE)
  
 r1 <- ref_ID_raw %>% 
 ref_ID_for_tejon <- ref_ID_raw %>% filter(., !grepl('OTU_', OTU)) #this is only for tejon data-since I re-annotated species names, removing the previous annotations will help with duplicate ID's (hopefully)
