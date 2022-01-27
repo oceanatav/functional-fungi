@@ -52,7 +52,7 @@ for(i in 1:nrow(ref_ID_noNAs)) {
 new_ref_ID <<- output %>% distinct()
 
 }
-
+clean_ref(ref_ID)
 ####
 #Return matching species names####
 ####
@@ -83,10 +83,10 @@ match_names <- function(OTU, ID, ref_ID, site){
   #  output_df$new_name[i] = output_df$OTU
   #}
   #}
-  output_df <<- output_df
-  #ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.) %>% mutate(study = rep(site))
+  output_df <<- output_df %>% mutate(site = rep(site))
+  ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.) #%>% mutate(study = rep(site))
   # print(unique(input_df$ref_name))
-  #ref_ID <<- ref_ID
+  ref_ID_newer <<- ref_ID
 }
 
 #match_names(test$Ecto_spp, test$Ecto_ID, ref_ID)
@@ -98,11 +98,15 @@ match_names <- function(OTU, ID, ref_ID, site){
 
 #Tejon
 tejon_spp<-readRDS("NMDS_4_input/tejon_spp_list.rds") %>% unite(ID, Genus, Species, sep=" ") %>% rename(OTU = OUT_MatchwMendo)
-match_names(tejon_spp$OTU, tejon_spp$ID, ref_ID, "tejon")
+match_names(tejon_spp$OTU, tejon_spp$ID, new_ref_ID, "tejon")
+tejon_match_names_output <- output_df
+
 
 #Richard
-richard_spp<-readRDS("NMDS_4_input/richard_spp_list.rds") %>% unite(ID, Genus, Species, sep=" ") %>% rename(OTU = OUT_MatchwMendo)
-
-
-
-
+richard_raw<- read_delim("Richard et al OTU table.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+richard_spp<-richard_raw %>% select(Taxon) %>%  
+transmute(OTU = str_replace(Taxon, " ", "_"),
+          ID = Taxon)
+clean_ref(ref_ID_newer)
+match_names(richard_spp$OTU, richard_spp$ID, new_ref_ID, "richard")
+richard_match_names_output <- output_df

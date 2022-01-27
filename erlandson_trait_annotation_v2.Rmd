@@ -1,5 +1,5 @@
 ---
-title: "Trait Annotation Backbone"
+title: "Trait Annotation Backbone - Adapted for Erlandson"
 author: "Oceana Tavasieff"
 date: "9/10/2021"
 output: html_document
