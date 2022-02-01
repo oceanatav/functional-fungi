@@ -39,6 +39,9 @@ clean_ref(ref_ID)
 
 #match_names will compare species binomials assigned in your data with an expanding reference list (ref_ID). You input a corresponding OTU and binomial list ("OTU" and "ID") and it will spit out any overlapping OTU with our existing reference list. Only reports exact matches. For instance, Amanita muscaria clone. J459 will not match with Amanita muscaria. match_names also binds the rows of your input data to the masterlist, so is intended to be used concurrently. For the moment renaming the overlapping OTU's has to happen manually.
 
+
+#https://stackoverflow.com/questions/48834536/r-saving-the-values-from-a-for-loop-in-a-vector-or-list/48834776 
+
 match_names <- function(OTU, ID, ref_ID, site){
   input_df = data.frame(OTU,ID)
   input_df = unique(input_df)
