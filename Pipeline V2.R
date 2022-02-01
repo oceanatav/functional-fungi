@@ -17,9 +17,15 @@ tejon_OTUs <- readRDS("NMDS_4_input/tejon_OTU_matrix.rds")
 tejon_traits <- readRDS("NMDS_4_input/tejon_trait_matrix.rds")
 
     ##Erlandson
+<<<<<<< HEAD
 erl_sample <- readRDS("NMDS_4_input/erlandson_enviro_list.rds")
 erl_OTUs <- readRDS("NMDS_4_input/erlandson_OTU_matrix.rds")
 erl_traits <- readRDS("NMDS_4_input/erlandson_trait_matrix.rds")
+=======
+erl_sample <- readRDS("NMDS_4_input/erl_enviro_list.rds")
+erl_OTUs <- readRDS("NMDS_4_input/erl_OTU_matrix.rds")
+erl_traits <- readRDS("NMDS_4_input/erl_trait_matrix.rds")
+>>>>>>> 605c2260c8d4119878e1d5ec01958c811bb31491
 
     ##Mendocino
 mendo_sample <- readRDS("NMDS_4_input/mendo_enviro_list.rds")
@@ -27,9 +33,15 @@ mendo_OTUs <- readRDS("NMDS_4_input/mendo_OTU_matrix.rds")
 mendo_traits <- readRDS("NMDS_4_input/mendo_trait_matrix.rds")
 
     ##Richard
+<<<<<<< HEAD
 rich_sample <- readRDS("NMDS_4_input/richard_enviro_list.rds")
 rich_OTUs <- readRDS("NMDS_4_input/richard_OTU_matrix.rds")
 rich_traits <- readRDS("NMDS_4_input/richard_trait_matrix.rds")
+=======
+rich_sample <- readRDS("NMDS_4_input/rich_enviro_list.rds")
+rich_OTUs <- readRDS("NMDS_4_input/rich_OTU_matrix.rds")
+rich_traits <- readRDS("NMDS_4_input/rich_trait_matrix.rds")
+>>>>>>> 605c2260c8d4119878e1d5ec01958c811bb31491
 
 ####
 #Function: Clean up and consolidate similar spp names in ref_ID
@@ -44,6 +56,7 @@ dupes_ref_ID_resolved <- dupes_temp[-c(4, 6:8, 10:11, 14, 15, 20, 22),]
 ref_ID_temp <- ref_ID[!ref_ID$OTU %in% dupes_ref_ID$OTU,]
 ref_ID_no_dupes <- rbind(ref_ID_temp, dupes_ref_ID_resolved)
 #still a couple duplicates where they could not be resolved, must replace with genus info manually
+<<<<<<< HEAD
 
 new_df = tibble()
 approxmatchtibble = numeric()
@@ -63,6 +76,17 @@ for(i in 1:nrow(ref_ID_noNAs)) {
 head(output)
 
 #### LAURA HAS NOT TOUCHED BELOW ####
+=======
+clean_ref <- function(ref_ID) {
+for(i in 1:nrow(ref_ID)) {
+  approx_match <- agrep(ref_ID$ID[i], x = ref_ID$ID, max =(0.001*nchar(ref_ID$ID[i])), ignore.case = TRUE)
+  new_df <- ref_ID[approx_match[1],] 
+  
+}
+
+}
+
+>>>>>>> 605c2260c8d4119878e1d5ec01958c811bb31491
 clean_up_ref <- function(ref_ID) {
   
 
