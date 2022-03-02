@@ -46,12 +46,17 @@ match_names <- function(OTU, ID, ref_ID, site){
   input_df = data.frame(OTU,ID)
   input_df = unique(input_df)
   input_df$ref_name = rep(0)
+  old_name <- c()
+  new_name <- c()
   for(i in 1:nrow(input_df)) {
     for(j in 1:nrow(ref_ID)) {
       if(input_df$ID[i] == ref_ID$ID[j]) {
         input_df$ref_name[i] = ref_ID$OTU[j]
         print(paste("Replace ID:", input_df$ID[i], "with", ref_ID$OTU[j]))
-      }
+      
+        old_name <- c(old_name, input_df$OTU[i])
+        new_name <- c(new_name, ref_ID$OTU[j])
+        }
       if(input_df$ref_name[i] == 0){
         input_df$ref_name[i] = input_df$OTU[i]
       }
@@ -67,9 +72,14 @@ match_names <- function(OTU, ID, ref_ID, site){
   #}
   #}
   output_df <<- output_df %>% mutate(site = rep(site))
+ # df_replace <<- data.frame(old_name,new_name) %>% mutate(site=rep(site))
+  #print(df)
   ref_ID <- bind_rows(ref_ID, input_df) %>% distinct(.) #%>% mutate(study = rep(site))
   # print(unique(input_df$ref_name))
   ref_ID_newer <<- ref_ID
+  
+  original_OTU<<-old_name
+  new_OTU <<-new_name
 }
 
 #match_names(test$Ecto_spp, test$Ecto_ID, ref_ID)
@@ -133,14 +143,46 @@ rich_traits <- readRDS("NMDS_4_input/richard_trait_matrix.rds")
 
 #This has to happen in the datasets individually to reduce issues with too many OTUS in the combined matrix
 
-update_OTUS <- function(input_dataset, newest_reference_list) {
-  for(i in 1:ncol(input_dataset)){
-    for(j in 1:nrow(newest_reference_list)){
-      if()
+
+#Try the tidyverse way?
+
+#1- if new OTU doesnt match old OTU, save old & new to new dataframe, then? 
+# if (colname = new_name), replace("new_name")
+# Does that work???
+
+replace_names <- tejon_match_names_output %>% filter(ref_name != OTU)
+
+old_col <- c(colnames(tejon_OTUs))
+legacy_old_col <- old_col
+for(j in 1:nrow(replace_names)) {
+  for(i in 1:length(old_col)) {
+    if(old_col[i] %in% replace_names$OTU[j]){
+     print("yep")
+      print(replace_names$ref_name[j])
+      
+  old_col<<- replace(old_col, i, replace_names$ref_name[j])
+   
     }
+  
   }
 }
+#out_colnames == legacy_old_col
+comp<- data.frame(legacy_old_col, old_col) %>% filter(legacy_old_col != old_col)
 
+#Non tidyverse way (rip)
+`%notin%`<- Negate(`%in%`)
+
+
+update_OTUS <- function(input_matrix, match_names_output) {
+  for(i in 1:nrow(match_names_output)){
+    for(j in colnames(input_matrix)){
+     if(colnames(input_matrix) %notin% match_names_output$ref_name){
+          }
+      }
+    }
+  }
+
+update_OTUS(tejon_OTUs,tejon_match_names_output)
 ####b. Combine Matrices ####
 #Combo OTU
 
