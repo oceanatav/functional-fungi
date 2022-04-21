@@ -1,6 +1,7 @@
 ###Pipeline V3###
 
 library(tidyverse)
+library(janitor)
 
 #library(ggplot)
 #### 1- Functions ####
@@ -141,14 +142,10 @@ rich_traits <- readRDS("NMDS_4_input/richard_trait_matrix.rds")
 
 ####a. Update OTU Names with New Consolidated OTUs ####
 
-#This has to happen in the datasets individually to reduce issues with too many OTUS in the combined matrix
+#This is going to happen in the datasets individually for my peace of mind.
 
+## Update Tejon ##
 
-#Try the tidyverse way?
-
-#1- if new OTU doesnt match old OTU, save old & new to new dataframe, then? 
-# if (colname = new_name), replace("new_name")
-# Does that work???
 
 replace_names <- tejon_match_names_output %>% filter(ref_name != OTU)
 
@@ -167,31 +164,82 @@ for(j in 1:nrow(replace_names)) {
   }
 }
 #out_colnames == legacy_old_col
-comp<- data.frame(legacy_old_col, old_col) %>% filter(legacy_old_col != old_col)
-
-#Non tidyverse way (rip)
-`%notin%`<- Negate(`%in%`)
+tej_comp<- data.frame(legacy_old_col, old_col) %>% filter(legacy_old_col != old_col)
+tej_comp2 <- tej_comp
 
 
-update_OTUS <- function(input_matrix, match_names_output) {
-  for(i in 1:nrow(match_names_output)){
-    for(j in colnames(input_matrix)){
-     if(colnames(input_matrix) %notin% match_names_output$ref_name){
-          }
-      }
+# Now we have to update the OTU list
+
+tej_rep_names <- tejon_OTUs %>%  t() %>% as_tibble(., rownames = "OTU")
+for(i in 1:nrow(tej_rep_names)){
+  for(j in 1:nrow(tej_comp2)){
+  if(tej_rep_names$OTU[i] == tej_comp2$legacy_old_col[j]){
+    tej_rep_names$OTU[i] = tej_comp2$old_col[j]
+    tej_comp2$legacy_old_col[j] = "DONE"
+  }
+}
+
+}
+
+tej_resum <- tej_rep_names %>% group_by(OTU) %>% summarise(across(everything(), sum)) %>% column_to_rownames(var="OTU")
+
+tej_OTU_up <- tej_resum %>% t()
+
+## Repeat for Richard ##
+## 
+
+replace_names_rich <- richard_match_names_output %>% filter(ref_name != OTU)
+
+old_col <- c(colnames(rich_OTUs))
+legacy_old_col <- old_col
+for(j in 1:nrow(replace_names_rich)) {
+  for(i in 1:length(old_col)) {
+    if(old_col[i] %in% replace_names_rich$OTU[j]){
+      print("yep")
+      print(replace_names_rich$ref_name[j])
+      
+      old_col<<- replace(old_col, i, replace_names_rich$ref_name[j])
+      
+    }
+    
+  }
+}
+#out_colnames == legacy_old_col
+rich_comp<- data.frame(legacy_old_col, old_col) %>% filter(legacy_old_col != old_col)
+rich_comp2 <- rich_comp
+
+
+# Now we have to update the OTU list
+
+rich_rep_names <- rich_OTUs %>%  t() %>% as_tibble(., rownames = "OTU")
+for(i in 1:nrow(rich_rep_names)){
+  for(j in 1:nrow(rich_comp2)){
+    if(rich_rep_names$OTU[i] == rich_comp2$legacy_old_col[j]){
+      rich_rep_names$OTU[i] = rich_comp2$old_col[j]
+      rich_comp2$legacy_old_col[j] = "DONE"
     }
   }
+  
+}
 
-update_OTUS(tejon_OTUs,tejon_match_names_output)
+rich_resum <- rich_rep_names %>% group_by(OTU) %>% summarise(across(everything(), sum)) %>% column_to_rownames(var="OTU")
+
+rich_OTU_up <- rich_resum %>% t()
+#check dim, no change
+#damn, so nothing had to be updated? whaaat a waste of time 
+
+
+####
+
 ####b. Combine Matrices ####
 #Combo OTU
 
 ##Make columns and rows
 ###Columns
 
-OTU_list <- unique(c(colnames(mendo_OTUs), colnames(tejon_OTUs), colnames(erl_OTUs),colnames(rich_OTUs)))
+OTU_list <- unique(c(colnames(mendo_OTUs), colnames(tej_OTU_up), colnames(erl_OTUs),colnames(rich_OTU_up)))
 ###Rows
-tree_names <- c(rownames(mendo_OTUs), rownames(tejon_OTUs), rownames(erl_OTUs), rownames(rich_OTUs))
+tree_names <- c(rownames(mendo_OTUs), rownames(tej_OTU_up), rownames(erl_OTUs), rownames(rich_OTU_up))
 #tree_list <- 1:(dim(tejon_OTU_matrix)[1]+dim(mendo_OTU_matrix)[1] + dim(erlandson_OTU_matrix)[1])
 
 ##Make empty matrix the with our columns and rows
@@ -209,11 +257,11 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
   
   # Find OTU data for tejon
   colnum <- 0
-  for(j in 1:ncol(tejon_OTUs)){
-    if(colnames(tejon_OTUs)[j]==OTU){
+  for(j in 1:ncol(tej_OTU_up)){
+    if(colnames(tej_OTU_up)[j]==OTU){
       colnum <- j 	}	}	
-  if(colnum==0){ 	tejon.abun <- rep(0,nrow(tejon_OTUs)) 	} 
-  if(colnum!=0){ 	tejon.abun <- tejon_OTUs[,colnum] }
+  if(colnum==0){ 	tejon.abun <- rep(0,nrow(tej_OTU_up)) 	} 
+  if(colnum!=0){ 	tejon.abun <- tej_OTU_up[,colnum] }
   
   # Find OTU data for mendocino	
   colnum <- 0
@@ -235,11 +283,11 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
   #Find OTU data for richard (Oceana)
   
   colnum <- 0
-  for(j in 1:ncol(rich_OTUs)) {
-    if(colnames(rich_OTUs)[j]==OTU){
+  for(j in 1:ncol(rich_OTU_up)) {
+    if(colnames(rich_OTU_up)[j]==OTU){
       colnum <- j }	}
-  if(colnum == 0){ richard.abun <- rep(0, nrow(rich_OTUs))}
-  if(colnum != 0){richard.abun <- rich_OTUs[,colnum]}
+  if(colnum == 0){ richard.abun <- rep(0, nrow(rich_OTU_up))}
+  if(colnum != 0){richard.abun <- rich_OTU_up[,colnum]}
   
   combo_OTU_matrix[,i] <- c(tejon.abun, mendo.abun, erlandson.abun, richard.abun)
   
