@@ -123,19 +123,20 @@ tejon_OTUs <- readRDS("NMDS_4_input/tejon_OTU_matrix.rds")
 tejon_traits <- readRDS("NMDS_4_input/tejon_trait_matrix.rds")
 
 ##Erlandson
-erl_sample <- readRDS("NMDS_4_input/erlandson_enviro_list.rds")
+erl_sample <- readRDS("NMDS_4_input/erlandson_enviro_list.rds") %>% rename(tree=Plspp)
 erl_OTUs <- readRDS("NMDS_4_input/erlandson_OTU_matrix.rds")
 erl_traits <- readRDS("NMDS_4_input/erlandson_trait_matrix.rds")
 
 ##Mendocino
-mendo_sample <- readRDS("NMDS_4_input/mendo_enviro_list.rds")
+mendo_sample <- readRDS("NMDS_4_input/mendo_enviro_list.rds") %>% rename(tree=Tree) %>% mutate(tree=as.character(tree))
 mendo_OTUs <- readRDS("NMDS_4_input/mendo_OTU_matrix.rds")
-mendo_traits <- readRDS("NMDS_4_input/mendo_trait_matrix.rds")
+mendo_traits <- readRDS("NMDS_4_input/mendo_trait_matrix.rds") %>% rownames_to_column(var="tree") %>% mutate(tree=as.character(tree)) %>% column_to_rownames(var="tree")
 
 ##Richard
-rich_sample <- readRDS("NMDS_4_input/richard_enviro_list.rds")
+rich_sample <- readRDS("NMDS_4_input/richard_enviro_list.rds") %>% rename(tree=Tree)
 rich_OTUs <- readRDS("NMDS_4_input/richard_OTU_matrix.rds")
-rich_traits <- readRDS("NMDS_4_input/richard_trait_matrix.rds")
+rich_traits <- readRDS("NMDS_4_input/richard_trait_matrix.rds") %>% t()
+
 
 
 ####3- Combine Data #### 
@@ -308,13 +309,64 @@ for(i in 1:dim(combo_OTU_matrix)[2]){
 #BiocManager::install("phyloseq")
 library(phyloseq)
 
+####a. Create PHYLOSEQ objects for OTU NMDS ####
+# NOT using taxa table ftm
+#https://joey711.github.io/phyloseq/import-data.html
 
+##Sample table
+
+
+com_sam_df <- bind_rows(mendo_sample, tejon_sample,  erl_sample, rich_sample) %>% replace(is.na(.), 0) %>% column_to_rownames(var="tree")
+com_sam <- sample_data(com_sam_df)
+
+##OTU table
+
+com_otu <- otu_table(combo_OTU_matrix, taxa_are_rows = F) 
+
+## Phyloseq object
+
+com_ps <- phyloseq(com_otu,com_sam)
+
+
+####b.Phyloseq objects for trait NMDS ####
+
+com_trait_df <-  bind_rows(mendo_traits, tejon_traits,  erl_traits, data.frame(rich_traits)) %>% replace(is.na(.), 0)# %>% column_to_rownames(var="tree")
+
+
+com_trait <- otu_table(com_trait_df, taxa_are_rows = F)
+
+dat <- c("long_rhizo", "short_norhizo" ,  "unknown_unknown", "medium_rhizo","medium_unknown" ,"unknown_rhizo" ,  "short_rhizo"  ,   "short_unknown" ,  "unknown_norhizo")
+rnames <- c("long_rhizo", "short_norhizo" ,  "unknown_unknown", "medium_rhizo","medium_unknown" ,"unknown_rhizo" ,  "short_rhizo"  ,   "short_unknown" ,  "unknown_norhizo")
+cnames <- "Species"
+
+com_trait_tax <- matrix(dat, nrow =9, ncol =1, dimnames=list(rnames,cnames))
+com_trait_tax <- tax_table(com_trait_tax)
+
+com_trait_sam <- com_trait_df %>% rownames_to_column(., var = "tree") %>% right_join(com_trait_tax, .) %>% column_to_rownames(., var = "tree")
+
+
+com_trait_ps <- phyloseq(com_sam, com_trait_tax, com_trait)
 
 ####5-Ordinate####
 
+####a. Taxonomy####
 
+
+#Taxonomy distribution
+com_ps_ord <- ordinate(com_ps, method = "PCoA", distance = "bray", trymax=50)
+p_com = plot_ordination(com_ps, com_ps_ord, color="site")
+print(p_com)
+
+com_ps_ord_trait <- ordinate(com_trait_ps, method = "PCoA", distance = "bray", trymax=50)
+p_com_t = plot_ordination(com_trait_ps, com_ps_ord_trait, color="enviro", shape = "site")
+print(p_com_t)
 
 
 ####6-Figures####
+library(ggfortify)
 
+
+autoplot(com_ps_ord_trait, data = com_trait_sam, colour = 'Species',
+         loadings = TRUE, loadings.colour = 'blue',
+         loadings.label = TRUE, loadings.label.size = 3)
 
