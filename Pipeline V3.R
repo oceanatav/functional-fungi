@@ -317,6 +317,8 @@ library(phyloseq)
 
 
 com_sam_df <- bind_rows(mendo_sample, tejon_sample,  erl_sample, rich_sample) %>% replace(is.na(.), 0) %>% column_to_rownames(var="tree")
+
+com_sam_df %>% group_by(enviro) %>% summarise(sum = n()) 
 com_sam <- sample_data(com_sam_df)
 
 ##OTU table
