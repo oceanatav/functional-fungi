@@ -1,0 +1,70 @@
+---
+title: "V3 Figure Creation and Modification"
+author: "Oceana Tavasieff"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(vegan)
+```
+#### Ordinate all 4 separately
+
+#### All 4 datasets together
+
+```{r}
+samples_raw <- readRDS("V3 Files/sample_dataframe.rds")
+OTU_raw <- readRDS("V3 Files/OTU_matrix.rds")
+traits_raw <- readRDS("V3 Files/trait_dataframe.rds")
+traits_as_taxa_raw <- readRDS("V3 Files/trait_taxa_table.rds")
+```
+
+So how do I ordinate outside of phyloseq?
+We used a PCoA.
+
+#### Run PERMANOVA w vegan
+
+```{r}
+OTU <- as.data.frame(OTU_raw) %>% rownames_to_column("tree")
+samples <- samples_raw %>% rownames_to_column("tree") %>% select(tree, enviro, site)
+
+OTU_enviro <- OTU %>% left_join(., samples)
+
+```
+```{r}
+shannondiv <- diversity(OTU_raw)
+head(shannondiv)
+````
+```{r}
+sppdiv_aov <- aov(shannondiv ~ enviro, data = OTU_enviro)
+summary(sppdiv_aov)
+
+#enviro        1   2.55  2.5538   4.092 0.0457 *
+#significant difference in shannon diveristy btw environment?? 
+# prob not good if true haha
+```
+```{r}
+sppr<- specnumber(OTU)
+
+
+# analysis of variance takes the same form as the usual models you'd see in R
+# response ~ dependent, data = environmental grouping
+sppr_aov <- aov(sppr ~ enviro, data = OTU_enviro)
+summary(sppr_aov)
+
+```
+```{r}
+shandiv_df <- shannondiv %>% 
+  # put all those calculations into a data frame
+  enframe() %>% 
+  # rename columns for ease of joining
+  rename(shan_div = value)
+```
+
+
+
+```{r}
+bird_perm <- adonis(birds ~ landtype, data = env)
+bird_perm
+```
+

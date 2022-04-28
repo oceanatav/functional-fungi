@@ -1,9 +1,8 @@
 ###Pipeline V3###
 
 library(tidyverse)
-library(janitor)
 
-#library(ggplot)
+
 #### 1- Functions ####
 
 ####
@@ -341,8 +340,8 @@ dat <- c("long_rhizo", "short_norhizo" ,  "unknown_unknown", "medium_rhizo","med
 rnames <- c("long_rhizo", "short_norhizo" ,  "unknown_unknown", "medium_rhizo","medium_unknown" ,"unknown_rhizo" ,  "short_rhizo"  ,   "short_unknown" ,  "unknown_norhizo")
 cnames <- "Species"
 
-com_trait_tax <- matrix(dat, nrow =9, ncol =1, dimnames=list(rnames,cnames))
-com_trait_tax <- tax_table(com_trait_tax)
+com_trait_tax_df <- matrix(dat, nrow =9, ncol =1, dimnames=list(rnames,cnames))
+com_trait_tax <- tax_table(com_trait_tax_df)
 
 com_trait_sam <- com_trait_df %>% rownames_to_column(., var = "tree") %>% right_join(com_trait_tax, .) %>% column_to_rownames(., var = "tree")
 
@@ -351,7 +350,7 @@ com_trait_ps <- phyloseq(com_sam, com_trait_tax, com_trait)
 
 ####5-Ordinate####
 
-####a. Taxonomy####
+####a.Taxonomy####
 
 
 #Taxonomy distribution
@@ -359,16 +358,78 @@ com_ps_ord <- ordinate(com_ps, method = "PCoA", distance = "bray", trymax=50)
 p_com = plot_ordination(com_ps, com_ps_ord, color="site")
 print(p_com)
 
+####b.Trait####
+
 com_ps_ord_trait <- ordinate(com_trait_ps, method = "PCoA", distance = "bray", trymax=50)
-p_com_t = plot_ordination(com_trait_ps, com_ps_ord_trait, color="enviro", shape = "site")
-print(p_com_t)
 
 
 ####6-Figures####
-library(ggfortify)
+
+###a. Taxa figure####
+
+p_com = plot_ordination(com_ps, com_ps_ord, color="site")
+print(p_com)
+
+####b. Trait figure####
+
+p_com_t = plot_ordination(com_trait_ps, com_ps_ord_trait, color="site", shape = "site", label = "enviro")
+print(p_com_t)
 
 
-autoplot(com_ps_ord_trait, data = com_trait_sam, colour = 'Species',
-         loadings = TRUE, loadings.colour = 'blue',
-         loadings.label = TRUE, loadings.label.size = 3)
+plot_bar(com_trait_ps, fill = "Species")
+
+#   interesting- weird spike CS and EA samples (richard)
+#   otherwise all sum to Abund = 1
+#   Maybe we should NOT relative abundance?
+#   OR we have to fix weird relabund spike
+
+
+## OTU heatmap
+
+# plot_heatmap(com_ps, method = "PCoA", distance = "bray")
+#   weird
+#  " Transformation introduced infinite values in discrete y-axis "
+
+## Trait heatmap
+
+plot_heatmap(com_trait_ps, method = "PCoA", distance = "bray")
+
+#   Warning message:
+#   Transformation introduced infinite values in discrete y-axis 
+#   
+#   Unknowns clearly dominat
+#   also short_norhizo
+
+
+## Potential way to view by trait/extract eigenvalues
+## Maybe through subsetting our data
+## e.g.https://vaulot.github.io/tutorials/Phyloseq_tutorial.html#read-the-data-and-create-phyloseq-objects 7.2
+sample_variables(com_trait_ps)
+#   "Pygmy"  "enviro" "site"   "mean" 
+rank_names(com_trait_ps)
+#   "Species"
+
+
+short <- subset_taxa(com_trait_ps, Species == "short_norhizo" |Species ==  "short_rhizo" | Species == "short_unknown")
+short
+
+medium <- subset_taxa(com_trait_ps, Species == "medium_rhizo" |Species ==  "medium_unknown")
+
+long <- subset_taxa(com_trait_ps, Species == "long_rhizo")
+
+rhizo <- subset_taxa(com_trait_ps, Species == "long_rhizo" |Species ==  "medium_rhizo" | Species == "unknown_rhizo" | Species == "short_rhizo")
+
+norhizo <- subset_taxa(com_trait_ps, Species == "short_norhizo" |Species ==  "unknown_norhizo")
+
+unknown <- subset_taxa(com_trait_ps, Species == "unknown_unknown" |Species ==  "medium_unknown" | Species == "short_unknown")
+
+short_ord <- ordinate(short, "PCoA", "bray")
+
+####7- Export data ####
+
+saveRDS(com_sam_df, "V3 Files/sample_dataframe.rds")
+saveRDS(com_trait_df, "V3 Files/trait_dataframe.rds")
+saveRDS(combo_OTU_matrix, "V3 Files/OTU_matrix.rds")
+
+saveRDS(com_trait_tax_df, "V3 Files/trait_taxa_table.rds")
 
