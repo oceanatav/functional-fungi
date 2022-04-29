@@ -36,12 +36,21 @@ shannondiv <- diversity(OTU_raw)
 head(shannondiv)
 ````
 ```{r}
-sppdiv_aov <- aov(shannondiv ~ enviro, data = OTU_enviro)
-summary(sppdiv_aov)
+sppdiv_enviro_aov <- aov(shannondiv ~ enviro, data = OTU_enviro)
+summary(sppdiv_enviro_aov)
 
 #enviro        1   2.55  2.5538   4.092 0.0457 *
 #significant difference in shannon diveristy btw environment?? 
 # prob not good if true haha
+
+sppdiv_site_aov <- aov(shannondiv~site, data=OTU_enviro)
+summary(sppdiv_site_aov)
+
+#site         3  46.08  15.361   79.75 <2e-16 ***
+#   sig  diff in shann div btw sites
+#   but both are strongly driven by the lack of spp overlap/beta diversity driven by artificially combining the sites
+#   
+#   
 ```
 ```{r}
 sppr<- specnumber(OTU)
@@ -64,7 +73,47 @@ shandiv_df <- shannondiv %>%
 
 
 ```{r}
-bird_perm <- adonis(birds ~ landtype, data = env)
-bird_perm
+
+#for permANOVA
+
+OTU_for_perm <- OTU_enviro #%>% mutate(env_code = if_else(enviro == "arid", 1, 2)) %>% select(-enviro, -site)
+OTU_perm <- adonis(OTU_raw ~ enviro, data = OTU_for_perm)
+OTU_perm
+```
+
+
+#### Trait
+
+```{r}
+traits <- as.data.frame(traits_raw) %>% rownames_to_column("tree")
+
+traits_enviro <- traits %>% left_join(., samples)
+
+```
+
+```{r}
+shandiv_tr <- diversity(traits_raw)
+head(shandiv_tr)
+````
+```{r}
+tr_sppdiv_enviro_aov <- aov(shandiv_tr ~ enviro, data = traits_enviro)
+summary(tr_sppdiv_enviro_aov)
+
+#enviro        1   2.55  2.5538   4.092 0.0457 *
+#significant difference in shannon diveristy btw environment?? 
+# prob not good if true haha
+
+tr_sppdiv_site_aov <- aov(shandiv_tr~site, data=traits_enviro)
+summary(tr_sppdiv_site_aov)
+
+#site         3  46.08  15.361   79.75 <2e-16 ***
+#   sig  diff in shann div btw sites
+#   but both are strongly driven by the lack of spp overlap/beta diversity driven by artificially combining the sites
+#   
+#   
+```
+```{r}
+tr_perm <- adonis(traits_raw ~ enviro, data = traits_enviro)
+tr_perm
 ```
 
